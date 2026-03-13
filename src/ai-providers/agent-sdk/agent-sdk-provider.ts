@@ -79,6 +79,9 @@ export class AgentSdkProvider implements GenerateProvider {
           media.push(...extractMediaFromToolResultContent(content))
           channel.push({ type: 'tool_result', tool_use_id: toolUseId, content })
         },
+        onText: (text) => {
+          channel.push({ type: 'text', text })
+        },
       },
       override,
       mcpServer,

@@ -64,6 +64,9 @@ export class ClaudeCodeProvider implements GenerateProvider {
         media.push(...extractMediaFromToolResultContent(content))
         channel.push({ type: 'tool_result', tool_use_id: toolUseId, content })
       },
+      onText: (text) => {
+        channel.push({ type: 'text', text })
+      },
     })
 
     resultPromise.then(() => channel.close()).catch((err) => channel.error(err instanceof Error ? err : new Error(String(err))))
