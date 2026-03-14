@@ -426,6 +426,39 @@ describe('AgentCenter — session persistence', () => {
     expect(resultBlocks.map(b => (b as { tool_use_id: string }).tool_use_id)).toEqual(['t1', 't2', 't3'])
   })
 
+  it('A17: media in tool_result content is extracted exactly once by AgentCenter when provider done.media is empty', async () => {
+    const { persistMedia } = await import('../../media-store.js')
+    vi.mocked(persistMedia).mockResolvedValueOnce('2026-03-14/screenshot.png')
+
+    const toolResultContent = JSON.stringify({
+      content: [{ type: 'text', text: 'MEDIA:/tmp/screenshot.png' }],
+    })
+
+    // Simulates fixed ClaudeCode/AgentSdk provider behavior:
+    // - tool_result content contains MEDIA marker (raw content passed through)
+    // - done event carries empty media (provider does NOT extract from tool_result)
+    // AgentCenter is the sole extractor — must call persistMedia exactly once.
+    const provider = new FakeProvider([
+      toolUseEvent('t1', 'browser', {}),
+      toolResultEvent('t1', toolResultContent),
+      textEvent('screenshot taken'),
+      doneEvent('screenshot taken'),
+    ])
+    const ac = makeAgentCenter(provider)
+    const session = new MemorySessionStore()
+
+    await ac.askWithSession('take screenshot', session)
+
+    // persistMedia must be called exactly once — single extraction path
+    expect(vi.mocked(persistMedia)).toHaveBeenCalledTimes(1)
+
+    const assistants = assistantEntries(await session.readAll())
+    const finalBlocks = blocksOf(assistants[assistants.length - 1])
+    const imageBlocks = finalBlocks.filter(b => b.type === 'image')
+    expect(imageBlocks).toHaveLength(1)
+    expect(imageBlocks[0]).toEqual({ type: 'image', url: '/api/media/2026-03-14/screenshot.png' })
+  })
+
   it('A15: providerTag carries through to intermediate writes too', async () => {
     const provider = new FakeProvider(
       [

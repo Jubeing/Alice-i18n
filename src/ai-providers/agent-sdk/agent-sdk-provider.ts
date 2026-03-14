@@ -13,7 +13,6 @@ import type { Tool } from 'ai'
 import type { ProviderResult, ProviderEvent, GenerateProvider, GenerateInput, GenerateOpts } from '../types.js'
 import type { AgentSdkConfig, AgentSdkOverride } from './query.js'
 import { readAgentConfig } from '../../core/config.js'
-import { extractMediaFromToolResultContent } from '../../core/media.js'
 import { createChannel } from '../../core/async-channel.js'
 import { askAgentSdk } from './query.js'
 import { buildAgentSdkMcpServer } from './tool-bridge.js'
@@ -66,7 +65,6 @@ export class AgentSdkProvider implements GenerateProvider {
     const mcpServer = await this.buildMcpServer(opts?.disabledTools)
 
     const channel = createChannel<ProviderEvent>()
-    const media: import('../../core/types.js').MediaAttachment[] = []
 
     const resultPromise = askAgentSdk(
       input.prompt,
@@ -76,7 +74,6 @@ export class AgentSdkProvider implements GenerateProvider {
           channel.push({ type: 'tool_use', id, name, input: toolInput })
         },
         onToolResult: ({ toolUseId, content }) => {
-          media.push(...extractMediaFromToolResultContent(content))
           channel.push({ type: 'tool_result', tool_use_id: toolUseId, content })
         },
         onText: (text) => {
@@ -92,7 +89,7 @@ export class AgentSdkProvider implements GenerateProvider {
 
     const result = await resultPromise
     const prefix = result.ok ? '' : '[error] '
-    yield { type: 'done', result: { text: prefix + result.text, media } }
+    yield { type: 'done', result: { text: prefix + result.text, media: [] } }
   }
 
 }

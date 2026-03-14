@@ -12,7 +12,6 @@ import { resolve } from 'node:path'
 import type { ProviderResult, ProviderEvent, GenerateProvider, GenerateInput, GenerateOpts } from '../types.js'
 import type { ClaudeCodeConfig } from './types.js'
 import { readAgentConfig } from '../../core/config.js'
-import { extractMediaFromToolResultContent } from '../../core/media.js'
 import { createChannel } from '../../core/async-channel.js'
 import { askClaudeCode } from './provider.js'
 
@@ -53,7 +52,6 @@ export class ClaudeCodeProvider implements GenerateProvider {
     }
 
     const channel = createChannel<ProviderEvent>()
-    const media: import('../../core/types.js').MediaAttachment[] = []
 
     const resultPromise = askClaudeCode(input.prompt, {
       ...claudeCode,
@@ -61,7 +59,6 @@ export class ClaudeCodeProvider implements GenerateProvider {
         channel.push({ type: 'tool_use', id, name, input: toolInput })
       },
       onToolResult: ({ toolUseId, content }) => {
-        media.push(...extractMediaFromToolResultContent(content))
         channel.push({ type: 'tool_result', tool_use_id: toolUseId, content })
       },
       onText: (text) => {
@@ -74,7 +71,7 @@ export class ClaudeCodeProvider implements GenerateProvider {
 
     const result = await resultPromise
     const prefix = result.ok ? '' : '[error] '
-    yield { type: 'done', result: { text: prefix + result.text, media } }
+    yield { type: 'done', result: { text: prefix + result.text, media: [] } }
   }
 
 }
