@@ -193,10 +193,10 @@ export class AlpacaBroker implements IBroker {
     }
   }
 
-  async modifyOrder(orderId: string, changes: Order): Promise<PlaceOrderResult> {
+  async modifyOrder(orderId: string, changes: Partial<Order>): Promise<PlaceOrderResult> {
     try {
       const patch: Record<string, unknown> = {}
-      if (!changes.totalQuantity.equals(UNSET_DECIMAL)) patch.qty = parseFloat(changes.totalQuantity.toString())
+      if (changes.totalQuantity != null && !changes.totalQuantity.equals(UNSET_DECIMAL)) patch.qty = parseFloat(changes.totalQuantity.toString())
       if (changes.lmtPrice !== UNSET_DOUBLE) patch.limit_price = changes.lmtPrice
       if (changes.auxPrice !== UNSET_DOUBLE) patch.stop_price = changes.auxPrice
       if (changes.trailingPercent !== UNSET_DOUBLE) patch.trail = changes.trailingPercent
@@ -214,12 +214,14 @@ export class AlpacaBroker implements IBroker {
     }
   }
 
-  async cancelOrder(orderId: string): Promise<boolean> {
+  async cancelOrder(orderId: string): Promise<PlaceOrderResult> {
     try {
       await this.client.cancelOrder(orderId)
-      return true
-    } catch {
-      return false
+      const orderState = new OrderState()
+      orderState.status = 'Cancelled'
+      return { success: true, orderId, orderState }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
     }
   }
 

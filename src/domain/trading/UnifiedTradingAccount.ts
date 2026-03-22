@@ -161,7 +161,7 @@ export class UnifiedTradingAccount {
         case 'placeOrder':
           return broker.placeOrder(op.contract, op.order)
         case 'modifyOrder':
-          return broker.modifyOrder(op.orderId, op.changes as Parameters<IBroker['modifyOrder']>[1])
+          return broker.modifyOrder(op.orderId, op.changes)
         case 'closePosition':
           return broker.closePosition(op.contract, op.quantity)
         case 'cancelOrder':

@@ -168,8 +168,8 @@ export interface IBroker<TMeta = unknown> {
   // ---- Trading operations (IBKR Order as source of truth) ----
 
   placeOrder(contract: Contract, order: Order): Promise<PlaceOrderResult>
-  modifyOrder(orderId: string, changes: Order): Promise<PlaceOrderResult>
-  cancelOrder(orderId: string, orderCancel?: OrderCancel): Promise<boolean>
+  modifyOrder(orderId: string, changes: Partial<Order>): Promise<PlaceOrderResult>
+  cancelOrder(orderId: string, orderCancel?: OrderCancel): Promise<PlaceOrderResult>
   closePosition(contract: Contract, quantity?: Decimal): Promise<PlaceOrderResult>
 
   // ---- Queries ----

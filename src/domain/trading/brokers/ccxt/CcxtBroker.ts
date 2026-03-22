@@ -296,22 +296,22 @@ export class CcxtBroker implements IBroker<CcxtBrokerMeta> {
     }
   }
 
-  async cancelOrder(orderId: string): Promise<boolean> {
+  async cancelOrder(orderId: string): Promise<PlaceOrderResult> {
     this.ensureInit()
-
 
     try {
       const ccxtSymbol = this.orderSymbolCache.get(orderId)
       await this.exchange.cancelOrder(orderId, ccxtSymbol)
-      return true
-    } catch {
-      return false
+      const orderState = new OrderState()
+      orderState.status = 'Cancelled'
+      return { success: true, orderId, orderState }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
     }
   }
 
-  async modifyOrder(orderId: string, changes: Order): Promise<PlaceOrderResult> {
+  async modifyOrder(orderId: string, changes: Partial<Order>): Promise<PlaceOrderResult> {
     this.ensureInit()
-
 
     try {
       const ccxtSymbol = this.orderSymbolCache.get(orderId)
@@ -321,7 +321,7 @@ export class CcxtBroker implements IBroker<CcxtBrokerMeta> {
 
       // editOrder requires type and side — fetch the original order to fill in defaults
       const original = await this.exchange.fetchOrder(orderId, ccxtSymbol)
-      const qty = !changes.totalQuantity.equals(UNSET_DECIMAL) ? parseFloat(changes.totalQuantity.toString()) : original.amount
+      const qty = changes.totalQuantity != null && !changes.totalQuantity.equals(UNSET_DECIMAL) ? parseFloat(changes.totalQuantity.toString()) : original.amount
       const price = changes.lmtPrice !== UNSET_DOUBLE ? changes.lmtPrice : original.price
 
       const result = await this.exchange.editOrder(
