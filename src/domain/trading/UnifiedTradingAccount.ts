@@ -358,9 +358,10 @@ export class UnifiedTradingAccount {
   stagePlaceOrder(params: StagePlaceOrderParams): AddResult {
     // Resolve aliceId → full contract via broker (fills secType, exchange, currency, conId, etc.)
     const parsed = UnifiedTradingAccount.parseAliceId(params.aliceId)
-    const contract = parsed
-      ? this.broker.resolveNativeKey(parsed.nativeKey)
-      : new Contract()
+    if (!parsed) {
+      throw new Error(`Invalid aliceId "${params.aliceId}". Use searchContracts to get a valid contract identifier (expected format: "accountId|nativeKey").`)
+    }
+    const contract = this.broker.resolveNativeKey(parsed.nativeKey)
     contract.aliceId = params.aliceId
     if (params.symbol) contract.symbol = params.symbol
 
@@ -399,9 +400,10 @@ export class UnifiedTradingAccount {
 
   stageClosePosition(params: StageClosePositionParams): AddResult {
     const parsed = UnifiedTradingAccount.parseAliceId(params.aliceId)
-    const contract = parsed
-      ? this.broker.resolveNativeKey(parsed.nativeKey)
-      : new Contract()
+    if (!parsed) {
+      throw new Error(`Invalid aliceId "${params.aliceId}". Use searchContracts to get a valid contract identifier (expected format: "accountId|nativeKey").`)
+    }
+    const contract = this.broker.resolveNativeKey(parsed.nativeKey)
     contract.aliceId = params.aliceId
     if (params.symbol) contract.symbol = params.symbol
 
