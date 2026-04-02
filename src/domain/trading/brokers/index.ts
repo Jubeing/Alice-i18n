@@ -29,3 +29,7 @@ export type { CcxtBrokerConfig } from './ccxt/index.js'
 // IBKR
 export { IbkrBroker } from './ibkr/index.js'
 export type { IbkrBrokerConfig } from './ibkr/index.js'
+
+// LongPort
+export { LongPortBroker } from './longport/LongPortBroker.js'
+export { longPortConfigFields } from './longport/LongPortBroker.js'

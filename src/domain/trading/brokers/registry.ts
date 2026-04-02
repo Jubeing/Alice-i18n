@@ -11,6 +11,7 @@ import type { AccountConfig } from '../../../core/config.js'
 import { CcxtBroker } from './ccxt/CcxtBroker.js'
 import { AlpacaBroker } from './alpaca/AlpacaBroker.js'
 import { IbkrBroker } from './ibkr/IbkrBroker.js'
+import { LongPortBroker } from './longport/LongPortBroker.js'
 
 // ==================== Subtitle field descriptor ====================
 
@@ -89,6 +90,19 @@ export const BROKER_REGISTRY: Record<string, BrokerRegistryEntry> = {
     subtitleFields: [
       { field: 'host', prefix: 'TWS ' },
       { field: 'port' },
+    ],
+    guardCategory: 'securities',
+  },
+  longport: {
+    configSchema: LongPortBroker.configSchema,
+    configFields: LongPortBroker.configFields,
+    fromConfig: LongPortBroker.fromConfig,
+    name: 'LongPort (HK/US/SG)',
+    description: 'LongPort — Hong Kong, US, and Singapore equities. Commission-free trading with integrated market data.',
+    badge: 'LB',
+    badgeColor: 'text-blue-400',
+    subtitleFields: [
+      { field: 'autoRefresh', label: 'Auto-refresh' },
     ],
     guardCategory: 'securities',
   },
