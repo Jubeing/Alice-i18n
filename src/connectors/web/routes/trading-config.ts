@@ -163,5 +163,135 @@ export function createTradingConfigRoutes(ctx: EngineContext) {
     }
   })
 
+
+  // ==================== LongPort OAuth ====================
+
+  app.post('/longport/oauth-url', async (c) => {
+    try {
+      const { appKey, appSecret } = await c.req.json()
+      if (!appKey || !appSecret) {
+        return c.json({ error: 'appKey and appSecret are required' }, 400)
+      }
+
+      // Register OAuth client to get client credentials
+      const registerResp = await fetch('https://openapi.longbridge.com/oauth2/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_name: 'OpenAlice-LongPort',
+          redirect_uris: ['http://localhost:60355/callback', 'https://openalice.local/callback'],
+          grant_types: ['authorization_code', 'refresh_token'],
+        }),
+      })
+      const registered = await registerResp.json() as { client_id?: string; client_secret?: string }
+      if (!registered.client_id) {
+        return c.json({ error: 'OAuth registration failed', details: registered }, 400)
+      }
+
+      // Build authorization URL
+      const params = new URLSearchParams({
+        client_id: registered.client_id,
+        redirect_uri: 'https://openalice.local/callback',
+        response_type: 'code',
+        scope: 'trade market_data',
+      })
+      const authUrl = `https://openapi.longbridge.com/oauth2/authorize?${params}`
+
+      return c.json({
+        url: authUrl,
+        clientId: registered.client_id,
+        clientSecret: registered.client_secret ?? '',
+        note: 'Visit the URL above, authorize, then paste the authorization code from the redirect.',
+      })
+    } catch (err) {
+      return c.json({ error: String(err) }, 500)
+    }
+  })
+
+  app.post('/longport/exchange-token', async (c) => {
+    try {
+      const { appKey, appSecret, code, redirectUri } = await c.req.json()
+      if (!appKey || !appSecret || !code) {
+        return c.json({ error: 'appKey, appSecret, and code are required' }, 400)
+      }
+
+      const resp = await fetch('https://openapi.longbridge.com/oauth2/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri ?? 'https://openalice.local/callback',
+          client_id: appKey,
+          client_secret: appSecret,
+        }),
+      })
+      const data = await resp.json() as { access_token?: string; refresh_token?: string; expires_in?: number; error?: string }
+
+      if (data.error || !data.access_token) {
+        return c.json({ error: data.error ?? 'Token exchange failed', details: data }, 400)
+      }
+
+      const expiresAt = new Date(Date.now() + (data.expires_in ?? 86400) * 1000).toISOString()
+
+      return c.json({
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token ?? '',
+        expiresAt,
+      })
+    } catch (err) {
+      return c.json({ error: String(err) }, 500)
+    }
+  })
+
+  // ==================== LongPort Token Refresh ====================
+
+  app.post('/longport/refresh-token', async (c) => {
+    try {
+      const { appKey, appSecret, accessToken } = await c.req.json()
+      if (!appKey || !appSecret || !accessToken) {
+        return c.json({ error: 'appKey, appSecret, and accessToken are required' }, 400)
+      }
+
+      const expireDate = new Date()
+      expireDate.setDate(expireDate.getDate() + 90)
+      const expiredAt = expireDate.toISOString()
+
+      const crypto = await import('crypto')
+      const timestamp = Date.now().toString()
+      const uri = '/v1/token/refresh'
+      const canonicalParams = `expired_at=${encodeURIComponent(expiredAt)}`
+      const canonicalRequest =
+        `GET|${uri}|${canonicalParams}|authorization:${accessToken}\nx-api-key:${appKey}\nx-timestamp:${timestamp}\n|authorization;x-api-key;x-timestamp|`
+      const toSign = `HMAC-SHA256|${crypto.createHash('sha1').update(canonicalRequest, 'utf8').digest('hex')}`
+      const signStr = `HMAC-SHA256|${crypto.createHash('sha1').update(toSign, 'utf8').digest('hex')}`
+      const signature = crypto.createHmac('sha256', appSecret).update(signStr, 'utf8').digest('hex')
+      const finalSignature = `HMAC-SHA256 SignedHeaders=authorization;x-api-key;x-timestamp, Signature=${signature}`
+
+      const url = `https://openapi.longbridgeapp.com${uri}?${canonicalParams}`
+      const apiResp = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': accessToken,
+          'x-api-key': appKey,
+          'x-timestamp': timestamp,
+          'x-api-signature': finalSignature,
+        },
+      })
+      const result = await apiResp.json() as { code?: number; data?: { token?: string; expired_at?: string }; message?: string }
+
+      if (result.code !== 0 || !result.data?.token) {
+        return c.json({ error: `Token refresh failed: ${result.message ?? 'Unknown error'}`, code: result.code }, 400)
+      }
+
+      return c.json({
+        accessToken: result.data.token,
+        expiresAt: result.data.expired_at ?? expiredAt,
+      })
+    } catch (err) {
+      return c.json({ error: String(err) }, 500)
+    }
+  })
+
   return app
 }

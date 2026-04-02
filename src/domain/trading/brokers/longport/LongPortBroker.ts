@@ -49,6 +49,7 @@ export const LongPortBrokerConfigSchema = z.object({
   accessToken: z.string().optional(),
   autoRefresh: z.boolean().default(false),
   tokenExpiry: z.string().optional(),
+  paper: z.boolean().default(true),
 })
 
 export type LongPortBrokerConfig = z.infer<typeof LongPortBrokerConfigSchema>
@@ -59,7 +60,7 @@ export const longPortConfigFields: BrokerConfigField[] = [
   {
     name: 'appKey',
     type: 'text',
-    label: 'App Key',
+    label: 'LONGPORT_APP_KEY',
     required: true,
     sensitive: true,
     description: 'LongPort App Key from the developer portal (open.longbridge.com).',
@@ -67,7 +68,7 @@ export const longPortConfigFields: BrokerConfigField[] = [
   {
     name: 'appSecret',
     type: 'password',
-    label: 'App Secret',
+    label: 'LONGPORT_APP_SECRET',
     required: true,
     sensitive: true,
     description: 'LongPort App Secret from the developer portal.',
@@ -75,7 +76,7 @@ export const longPortConfigFields: BrokerConfigField[] = [
   {
     name: 'accessToken',
     type: 'password',
-    label: 'Access Token',
+    label: 'LONGPORT_ACCESS_TOKEN',
     required: true,
     sensitive: true,
     description: 'LongPort Access Token. Use "Refresh Token" button to renew automatically every 90 days.',
@@ -85,9 +86,17 @@ export const longPortConfigFields: BrokerConfigField[] = [
     type: 'boolean',
     label: 'Auto-refresh Token',
     default: false,
+    sensitive: false,
     description:
-      'Automatically refresh the access token every 90 days using HMAC-SHA256 signing. ' +
-      'Requires appKey and appSecret to be set.',
+      'When enabled, automatically refresh the access token every 90 days using HMAC-SHA256 signing.',
+  },
+  {
+    name: 'paper',
+    type: 'boolean',
+    label: 'Paper Trading',
+    default: true,
+    sensitive: false,
+    description: 'When enabled, routes orders to LongPort paper/sandbox environment.',
   },
 ]
 
@@ -152,6 +161,7 @@ export class LongPortBroker implements IBroker {
       accessToken: config.accessToken,
       autoRefresh: config.autoRefresh ?? false,
       tokenExpiry: config.tokenExpiry,
+      paper: config.paper ?? true,
     }
   }
 

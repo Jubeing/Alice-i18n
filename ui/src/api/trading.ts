@@ -140,4 +140,33 @@ export const tradingApi = {
     })
     return res.json()
   },
+
+  // ==================== LongPort OAuth ====================
+
+  async getLongPortOAuthUrl(appKey: string, appSecret: string): Promise<{ url: string; clientId: string; clientSecret: string; note: string; error?: string }> {
+    const res = await fetch('/api/trading/config/longport/oauth-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appKey, appSecret }),
+    })
+    return res.json()
+  },
+
+  async exchangeLongPortToken(appKey: string, appSecret: string, code: string, redirectUri?: string): Promise<{ accessToken: string; refreshToken?: string; expiresAt: string; error?: string }> {
+    const res = await fetch('/api/trading/config/longport/exchange-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appKey, appSecret, code, redirectUri }),
+    })
+    return res.json()
+  },
+
+  async refreshLongPortToken(appKey: string, appSecret: string, accessToken: string): Promise<{ accessToken: string; expiresAt: string; error?: string }> {
+    const res = await fetch('/api/trading/config/longport/refresh-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appKey, appSecret, accessToken }),
+    })
+    return res.json()
+  },
 }
