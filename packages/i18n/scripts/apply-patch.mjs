@@ -22,6 +22,10 @@ patch('main.tsx', '0001-main-tsx.patch')
 patch('Sidebar.tsx', '0002-Sidebar-tsx.patch')
 patch('SettingsPage.tsx', '0003-SettingsPage-tsx.patch')
 patch('DevPage.tsx', '0004-DevPage-tsx.patch')
+patch('AIProviderPage.tsx', '0005-AIProviderPage-tsx.patch')
+patch('TradingPage.tsx', '0006-TradingPage-tsx.patch')
+patch('ToolsPage.tsx', '0007-ToolsPage-tsx.patch')
+patch('ConnectorsPage.tsx', '0008-ConnectorsPage-tsx.patch')
 
 // Copy new i18n files
 console.log('Copying i18n files...')

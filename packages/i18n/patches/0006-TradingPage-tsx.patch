@@ -1,0 +1,357 @@
+diff --git a/ui/src/pages/TradingPage.tsx b/ui/src/pages/TradingPage.tsx
+index 02065b4..09a6454 100644
+--- a/ui/src/pages/TradingPage.tsx
++++ b/ui/src/pages/TradingPage.tsx
+@@ -9,6 +9,7 @@ import { useTradingConfig } from '../hooks/useTradingConfig'
+ import { useAccountHealth } from '../hooks/useAccountHealth'
+ import { PageHeader } from '../components/PageHeader'
+ import { api } from '../api'
++import { useTranslation } from '../i18n'
+ import type { AccountConfig, BrokerTypeInfo, BrokerConfigField, BrokerHealthInfo } from '../api/types'
+ 
+ // ==================== Dialog state ====================
+@@ -21,6 +22,7 @@ type DialogState =
+ // ==================== Page ====================
+ 
+ export function TradingPage() {
++  const { t } = useTranslation()
+   const tc = useTradingConfig()
+   const healthMap = useAccountHealth()
+   const [dialog, setDialog] = useState<DialogState>(null)
+@@ -37,12 +39,12 @@ export function TradingPage() {
+     }
+   }, [tc.accounts, dialog])
+ 
+-  if (tc.loading) return <PageShell subtitle="Loading..." />
++  if (tc.loading) return <PageShell subtitle={t.trading.loading} />
+   if (tc.error) {
+     return (
+-      <PageShell subtitle="Failed to load trading configuration.">
++      <PageShell subtitle={t.trading.loadFailed}>
+         <p className="text-[13px] text-red">{tc.error}</p>
+-        <button onClick={tc.refresh} className="mt-2 btn-secondary">Retry</button>
++        <button onClick={tc.refresh} className="mt-2 btn-secondary">{t.trading.retry}</button>
+       </PageShell>
+     )
+   }
+@@ -54,7 +56,7 @@ export function TradingPage() {
+ 
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+-      <PageHeader title="Trading" description="Configure your trading accounts." />
++      <PageHeader title={t.trading.title} description={t.trading.titleDesc} />
+ 
+       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5">
+         <div className="max-w-[720px] space-y-3">
+@@ -75,7 +77,7 @@ export function TradingPage() {
+                 onClick={() => setDialog({ kind: 'add' })}
+                 className="w-full py-2.5 text-[12px] text-text-muted hover:text-text border border-dashed border-border hover:border-text-muted/40 rounded-lg transition-colors"
+               >
+-                + Add Account
++                {t.trading.addAccount}
+               </button>
+             </>
+           )}
+@@ -91,7 +93,7 @@ export function TradingPage() {
+             await tc.saveAccount(account)
+             const result = await tc.reconnectAccount(account.id)
+             if (!result.success) {
+-              throw new Error(result.error || 'Connection failed')
++              throw new Error(result.error || t.trading.connectionFailed)
+             }
+             setDialog(null)
+           }}
+@@ -121,9 +123,10 @@ export function TradingPage() {
+ // ==================== Page Shell ====================
+ 
+ function PageShell({ subtitle, children }: { subtitle: string; children?: React.ReactNode }) {
++  const { t } = useTranslation()
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+-      <PageHeader title="Trading" description={subtitle} />
++      <PageHeader title={t.trading.title} description={subtitle} />
+       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5">{children}</div>
+     </div>
+   )
+@@ -132,14 +135,15 @@ function PageShell({ subtitle, children }: { subtitle: string; children?: React.
+ // ==================== Empty State ====================
+ 
+ function EmptyState({ onAdd }: { onAdd: () => void }) {
++  const { t } = useTranslation()
+   return (
+     <div className="rounded-xl border border-dashed border-border p-12 text-center">
+-      <h3 className="text-[16px] font-semibold text-text mb-2">No trading accounts</h3>
++      <h3 className="text-[16px] font-semibold text-text mb-2">{t.trading.noAccounts}</h3>
+       <p className="text-[13px] text-text-muted mb-6 max-w-[320px] mx-auto leading-relaxed">
+-        Connect a crypto exchange or brokerage account to start automated trading.
++        {t.trading.noAccountsDesc}
+       </p>
+       <button onClick={onAdd} className="btn-primary">
+-        + Add Account
++        {t.trading.addAccount}
+       </button>
+     </div>
+   )
+@@ -174,6 +178,7 @@ function Dialog({ onClose, width, children }: {
+ // ==================== Health Badge ====================
+ 
+ function HealthBadge({ health, size = 'sm' }: { health?: BrokerHealthInfo; size?: 'sm' | 'md' }) {
++  const { t } = useTranslation()
+   const textSize = size === 'md' ? 'text-[12px]' : 'text-[11px]'
+   const dotSize = size === 'md' ? 'w-2 h-2' : 'w-1.5 h-1.5'
+ 
+@@ -183,7 +188,7 @@ function HealthBadge({ health, size = 'sm' }: { health?: BrokerHealthInfo; size?
+     return (
+       <span className={`inline-flex items-center gap-1.5 ${textSize} text-text-muted`} title={health.lastError}>
+         <span className={`${dotSize} rounded-full bg-text-muted/40 shrink-0`} />
+-        Disabled
++        {t.trading.disabled}
+       </span>
+     )
+   }
+@@ -193,7 +198,7 @@ function HealthBadge({ health, size = 'sm' }: { health?: BrokerHealthInfo; size?
+       return (
+         <span className={`inline-flex items-center gap-1.5 ${textSize} text-green`}>
+           <span className={`${dotSize} rounded-full bg-green shrink-0`} />
+-          Connected
++          {t.trading.connected}
+         </span>
+       )
+     case 'degraded':
+@@ -239,6 +244,7 @@ function AccountCard({ account, brokerType, health, onClick }: {
+   health?: BrokerHealthInfo
+   onClick: () => void
+ }) {
++  const { t } = useTranslation()
+   const isDisabled = health?.disabled || account.enabled === false
+   const badge = brokerType
+     ? { text: brokerType.badge, color: `${brokerType.badgeColor} ${brokerType.badgeColor.replace('text-', 'bg-')}/10` }
+@@ -262,7 +268,7 @@ function AccountCard({ account, brokerType, health, onClick }: {
+         </div>
+         <div className="shrink-0">
+           {account.enabled === false
+-            ? <span className="text-[11px] text-text-muted">Disabled</span>
++            ? <span className="text-[11px] text-text-muted">{t.trading.disabled}</span>
+             : <HealthBadge health={health} />
+           }
+         </div>
+@@ -350,6 +356,7 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+   onSave: (account: AccountConfig) => Promise<void>
+   onClose: () => void
+ }) {
++  const { t } = useTranslation()
+   const [step, setStep] = useState(1)
+   const [type, setType] = useState<string | null>(null)
+   const [id, setId] = useState('')
+@@ -371,11 +378,9 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+   const credentialFields = bt?.fields.filter(f => f.sensitive && !isLongbridge) ?? []
+ 
+   // Initialize defaults only when creating a new account (no saved accountId).
+-  // When editing, brokerConfig already contains the saved values from the account.
+   useEffect(() => {
+     if (!bt) return
+-    // Only apply defaults when there's no saved account being edited
+-    if (id) return // id is the saved accountId
++    if (id) return
+     const defaults: Record<string, unknown> = {}
+     for (const f of bt.fields) {
+       if (f.default !== undefined) defaults[f.name] = f.default
+@@ -395,7 +400,6 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+     if (!currentToken) { setOauthError('Enter ACCESS_TOKEN first, then turn on Auto-refresh Token.'); return }
+     setOauthLoading(true); setOauthError('')
+ 
+-    // Directly call refresh-token endpoint — fully automatic, no popup needed
+     api.trading.refreshLongbridgeToken(appKey, appSecret, currentToken).then(result => {
+       if (result.error) { setOauthError(result.error); setOauthLoading(false); return }
+       setBrokerConfig(prev => ({ ...prev, accessToken: result.accessToken, tokenExpiry: result.expiresAt }))
+@@ -421,7 +425,7 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+   const handleNext = () => {
+     if (!type) return
+     if (existingAccountIds.includes(finalId)) {
+-      setError(`Account "${finalId}" already exists`)
++      setError(t.trading.accountAlreadyExists)
+       return
+     }
+     setError('')
+@@ -439,14 +443,14 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+ 
+       const testResult = await api.trading.testConnection(account)
+       if (!testResult.success) {
+-        setError(testResult.error || 'Connection failed')
++        setError(testResult.error || t.trading.connectionFailed)
+         setSaving(false)
+         return
+       }
+ 
+       await onSave(account)
+     } catch (err) {
+-      setError(err instanceof Error ? err.message : 'Failed to create account')
++      setError(err instanceof Error ? err.message : t.trading.connectionFailed)
+       setSaving(false)
+     }
+   }
+@@ -460,7 +464,7 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+       {/* Header */}
+       <div className="shrink-0 px-6 py-4 border-b border-border">
+         <div className="flex items-center justify-between mb-3">
+-          <h3 className="text-[14px] font-semibold text-text">New Account</h3>
++          <h3 className="text-[14px] font-semibold text-text">{t.trading.newAccount}</h3>
+           <button onClick={onClose} className="text-text-muted hover:text-text p-1 transition-colors">
+             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+               <path d="M18 6L6 18M6 6l12 12" />
+@@ -475,14 +479,14 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+         {step === 1 && (
+           <div className="space-y-5">
+             <div>
+-              <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-3">Platform</p>
++              <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-3">{t.trading.platform}</p>
+               <SDKSelector options={platformOptions} selected={type ?? ''} onSelect={(t) => setType(t)} />
+             </div>
+ 
+             {type && bt && (
+               <div className="space-y-3 pt-2 border-t border-border">
+-                <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-1">Connection</p>
+-                <Field label="Account ID">
++                <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-1">{t.trading.connection}</p>
++                <Field label={t.trading.accountId}>
+                   <input className={inputClass} value={id} onChange={(e) => setId(e.target.value.trim())} placeholder={defaultId} />
+                 </Field>
+                 <DynamicBrokerFields
+@@ -507,7 +511,7 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+               <span className="text-[13px] text-text-muted">{bt.name}</span>
+             </div>
+ 
+-            <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-1">Credentials</p>
++            <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-1">{t.trading.credentials}</p>
+             <DynamicBrokerFields
+               fields={credentialFields}
+               values={brokerConfig}
+@@ -522,21 +526,21 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+       {/* Footer */}
+       <div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border">
+         <button onClick={step === 1 ? onClose : () => { setStep(1); setError('') }} className="btn-secondary">
+-          {step === 1 ? 'Cancel' : 'Back'}
++          {step === 1 ? t.trading.cancel : t.trading.back}
+         </button>
+         {step === 1 && !hasSensitive && type && (
+           <button onClick={handleNext} disabled={saving} className="btn-primary">
+-            {saving ? 'Connecting...' : 'Create Account'}
++            {saving ? t.trading.connecting : t.trading.createAccount}
+           </button>
+         )}
+         {step === 1 && (hasSensitive || !type) && (
+           <button onClick={handleNext} disabled={!type} className="btn-primary">
+-            Next
++            {t.trading.next}
+           </button>
+         )}
+         {step === 2 && (
+           <button onClick={handleCreate} disabled={saving || !canCreate} className="btn-primary">
+-            {saving ? 'Connecting...' : 'Create Account'}
++            {saving ? t.trading.connecting : t.trading.createAccount}
+           </button>
+         )}
+       </div>
+@@ -554,6 +558,7 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+   onDelete: () => Promise<void>
+   onClose: () => void
+ }) {
++  const { t } = useTranslation()
+   const [draft, setDraft] = useState(account)
+   const [saving, setSaving] = useState(false)
+   const [msg, setMsg] = useState('')
+@@ -576,10 +581,10 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+     setSaving(true); setMsg('')
+     try {
+       await onSaveAccount(draft)
+-      setMsg('Saved')
++      setMsg(t.trading.saved)
+       setTimeout(() => setMsg(''), 2000)
+     } catch (err) {
+-      setMsg(err instanceof Error ? err.message : 'Save failed')
++      setMsg(err instanceof Error ? err.message : t.trading.saveFailed)
+     } finally {
+       setSaving(false)
+     }
+@@ -606,9 +611,9 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+ 
+       {/* Body */}
+       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+-        <Section title="Configuration">
++        <Section title={t.trading.configuration}>
+           <div className="mb-3">
+-            <span className="text-[12px] text-text-muted">Type</span>
++            <span className="text-[12px] text-text-muted">{t.trading.type}</span>
+             <span className="ml-2 text-[12px] font-medium text-text">{brokerType?.name ?? account.type}</span>
+           </div>
+           <DynamicBrokerFields
+@@ -622,7 +627,7 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+               onClick={() => setShowKeys(!showKeys)}
+               className="text-[11px] text-text-muted hover:text-text transition-colors mt-2"
+             >
+-              {showKeys ? 'Hide secrets' : 'Show secrets'}
++              {showKeys ? t.trading.hideSecrets : t.trading.showSecrets}
+             </button>
+           )}
+         </Section>
+@@ -640,14 +645,14 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+             >
+               <polyline points="9 18 15 12 9 6" />
+             </svg>
+-            Guards ({draft.guards.length})
++            {t.trading.guards} ({draft.guards.length})
+           </button>
+           {guardsOpen && (
+             <div className="mt-3">
+               <GuardsSection
+                 guards={draft.guards}
+                 guardTypes={guardTypes}
+-                description="Guards validate operations before execution. Order matters."
++                description={t.trading.guardsDesc}
+                 onChange={patchGuards}
+                 onChangeImmediate={patchGuards}
+               />
+@@ -661,7 +666,7 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+         <div className="flex items-center gap-3">
+           {dirty && (
+             <button onClick={handleSave} disabled={saving} className="btn-primary">
+-              {saving ? 'Saving...' : 'Save'}
++              {saving ? t.trading.saving : 'Save'}
+             </button>
+           )}
+           {draft.enabled !== false && <ReconnectButton accountId={account.id} />}
+@@ -671,12 +676,12 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+               setDraft(updated)
+               await onSaveAccount(updated)
+             }} />
+-            <span className="text-[12px] text-text-muted">{draft.enabled !== false ? 'Enabled' : 'Disabled'}</span>
++            <span className="text-[12px] text-text-muted">{draft.enabled !== false ? t.trading.enabled : t.trading.disabled}</span>
+           </label>
+           {msg && <span className="text-[12px] text-text-muted">{msg}</span>}
+         </div>
+         <div className="flex-1" />
+-        <DeleteButton label="Delete Account" onConfirm={onDelete} />
++        <DeleteButton label={t.trading.deleteAccount} onConfirm={onDelete} />
+       </div>
+     </Dialog>
+   )
+@@ -685,16 +690,17 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+ // ==================== Delete Button ====================
+ 
+ function DeleteButton({ label, onConfirm }: { label: string; onConfirm: () => void }) {
++  const { t } = useTranslation()
+   const [confirming, setConfirming] = useState(false)
+ 
+   if (confirming) {
+     return (
+       <div className="flex items-center gap-2">
+         <button onClick={() => { onConfirm(); setConfirming(false) }} className="btn-danger">
+-          Confirm
++          {t.trading.confirm}
+         </button>
+         <button onClick={() => setConfirming(false)} className="btn-secondary">
+-          Cancel
++          {t.trading.cancel}
+         </button>
+       </div>
+     )

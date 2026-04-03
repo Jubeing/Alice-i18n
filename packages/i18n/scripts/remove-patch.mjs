@@ -17,6 +17,10 @@ function unpatch(patchFile) {
 }
 
 // Revert patches in reverse order
+unpatch('0008-ConnectorsPage-tsx.patch')
+unpatch('0007-ToolsPage-tsx.patch')
+unpatch('0006-TradingPage-tsx.patch')
+unpatch('0005-AIProviderPage-tsx.patch')
 unpatch('0004-DevPage-tsx.patch')
 unpatch('0003-SettingsPage-tsx.patch')
 unpatch('0002-Sidebar-tsx.patch')
