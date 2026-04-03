@@ -164,6 +164,7 @@ if (!existsSync(systemdSrc)) {
 } else {
   let serviceContent = readFileSync(systemdSrc, 'utf8')
   serviceContent = serviceContent.replace(/\{\{OPENALICE_ROOT\}\}/g, ROOT)
+    serviceContent = serviceContent.replace(/\{\{LONGBRIDGE_MCP_ROOT\}\}/g, '/home/ubuntu/longport-mcp')
 
   const tmpPath = '/tmp/openalice.service'
   writeFileSync(tmpPath, serviceContent)
