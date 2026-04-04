@@ -22,6 +22,14 @@ function writeJson(path, obj) {
   writeFileSync(path, JSON.stringify(obj, null, 2) + '\n')
 }
 
+// ---- 0. Remove longport-mcp from packages/ ----
+
+const longportMcpDir = resolve(ROOT, 'packages/longport-mcp')
+if (existsSync(longportMcpDir)) {
+  rmSync(longportMcpDir, { recursive: true, force: true })
+  console.log('✓ Removed packages/longport-mcp/')
+}
+
 // ---- 1. Remove longbridge files from src/ ----
 
 const longbridgeDir = resolve(ROOT, 'src/domain/trading/brokers/longbridge')

@@ -6,23 +6,29 @@
  *   node packages/longport/scripts/apply-patch.mjs
  *
  * This script:
- *   1. Copies broker files to src/domain/trading/brokers/longbridge/
- *   2. Patches src/domain/trading/brokers/registry.ts  (adds longbridge entry)
- *   3. Patches src/domain/trading/brokers/index.ts      (adds longbridge export)
- *   4. Adds longbridge dependency to the root package.json
- *   5. Creates tsup.config.ts for the root build
- *   6. Installs systemd service (auto-start + crash recovery)
+ *   1. Copies longport-mcp to packages/longport-mcp/
+ *   2. Copies broker files to src/domain/trading/brokers/longbridge/
+ *   3. Patches src/domain/trading/brokers/registry.ts  (adds longbridge entry)
+ *   4. Patches src/domain/trading/brokers/index.ts      (adds longbridge export)
+ *   5. Adds longbridge dependency to the root package.json
+ *   6. Creates tsup.config.ts for the root build
+ *   7. Installs systemd service (auto-start + crash recovery)
  */
 
-import { readFileSync, writeFileSync, existsSync, cpSync, rmSync, readdirSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, cpSync, rmSync, readdirSync, mkdirSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const ROOT = resolve(__dirname, '../..')
+const ROOT = process.cwd()
 const LONGPORT_PKG = resolve(__dirname, '..')
+// Alice-Longbridge source root — set ALICE_LONGBRIDGE_ROOT env var to override
+const ALICE_LONGBRIDGE_ROOT = process.env.ALICE_LONGBRIDGE_ROOT
+  || resolve(ROOT, '../Alice-Longbridge')
+const LONGBP_PORT_MCP_PKG = resolve(ALICE_LONGBRIDGE_ROOT, 'packages/longport-mcp')
 const LONGBRIDGE_SRC_DEST = resolve(ROOT, 'src/domain/trading/brokers/longbridge')
+const LONGPORT_MCP_DEST = resolve(ROOT, 'packages/longport-mcp')
 
 function readJson(path) {
   return JSON.parse(readFileSync(path, 'utf8'))
@@ -48,6 +54,25 @@ function patchFile(filePath, patches) {
 
 console.log('\n📦 Installing Longbridge broker patch...\n')
 
+// ---- Step 0: Copy longport-mcp to OpenAlice packages ----
+
+console.log('\n🔧 Installing longport-mcp...')
+if (!existsSync(LONGBP_PORT_MCP_PKG)) {
+  console.error('❌ longport-mcp not found in Alice-Longbridge/packages/longport-mcp')
+  process.exit(1)
+}
+
+if (!existsSync(LONGPORT_MCP_DEST)) {
+  mkdirSync(LONGPORT_MCP_DEST, { recursive: true })
+}
+
+// Copy longport-mcp files (excluding node_modules and dist)
+const mcpFiles = readdirSync(LONGBP_PORT_MCP_PKG).filter(f => f !== 'node_modules' && f !== 'dist')
+for (const f of mcpFiles) {
+  cpSync(resolve(LONGBP_PORT_MCP_PKG, f), resolve(LONGPORT_MCP_DEST, f), { force: true, recursive: true })
+}
+console.log(`✓ Copied longport-mcp to packages/longport-mcp/`)
+
 // ---- Step 1: Copy broker files to src/ ----
 
 if (!existsSync(resolve(LONGPORT_PKG, 'src'))) {
@@ -56,7 +81,6 @@ if (!existsSync(resolve(LONGPORT_PKG, 'src'))) {
 }
 
 if (!existsSync(LONGBRIDGE_SRC_DEST)) {
-  const { mkdirSync } = await import('fs')
   mkdirSync(LONGBRIDGE_SRC_DEST, { recursive: true })
 }
 
@@ -164,7 +188,7 @@ if (!existsSync(systemdSrc)) {
 } else {
   let serviceContent = readFileSync(systemdSrc, 'utf8')
   serviceContent = serviceContent.replace(/\{\{OPENALICE_ROOT\}\}/g, ROOT)
-    serviceContent = serviceContent.replace(/\{\{LONGBRIDGE_MCP_ROOT\}\}/g, '/home/ubuntu/longport-mcp')
+  serviceContent = serviceContent.replace(/\{\{LONGBRIDGE_MCP_ROOT\}\}/g, resolve(ROOT, 'packages/longport-mcp'))
 
   const tmpPath = '/tmp/openalice.service'
   writeFileSync(tmpPath, serviceContent)
@@ -184,8 +208,7 @@ if (!existsSync(systemdSrc)) {
 
 console.log('\n✅ Longbridge broker patch applied successfully!\n')
 console.log('Next steps:')
-console.log('  1. pnpm install              # install longbridge')
-console.log('  2. pnpm build:backend        # rebuild backend (auto-externals longbridge)')
-console.log('  3. pnpm build:ui             # rebuild UI')
-console.log('  4. sudo systemctl restart openalice  # reload with new build')
+console.log('  1. pnpm install                  # install all dependencies (including longport-mcp)')
+console.log('  2. pnpm build                    # build everything (broker + MCP server)')
+console.log('  3. sudo systemctl restart openalice   # reload with new build')
 console.log('\n🎉 All done!')
