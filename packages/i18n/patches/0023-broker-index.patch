@@ -1,0 +1,13 @@
+diff --git a/src/domain/trading/brokers/index.ts b/src/domain/trading/brokers/index.ts
+index dfb210d..389a277 100644
+--- a/src/domain/trading/brokers/index.ts
++++ b/src/domain/trading/brokers/index.ts
+@@ -28,4 +28,8 @@ export type { CcxtBrokerConfig } from './ccxt/index.js'
+ 
+ // IBKR
+ export { IbkrBroker } from './ibkr/index.js'
++
++// Longbridge
++export { LongbridgeBroker } from './longbridge/LongbridgeBroker.js'
++export { longbridgeConfigFields } from './longbridge/LongbridgeBroker.js'
+ export type { IbkrBrokerConfig } from './ibkr/index.js'

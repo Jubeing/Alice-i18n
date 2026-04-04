@@ -1,0 +1,143 @@
+diff --git a/src/connectors/web/routes/trading-config.ts b/src/connectors/web/routes/trading-config.ts
+index 485e39b..5e97372 100644
+--- a/src/connectors/web/routes/trading-config.ts
++++ b/src/connectors/web/routes/trading-config.ts
+@@ -6,6 +6,9 @@ import {
+ } from '../../../core/config.js'
+ import { createBroker } from '../../../domain/trading/brokers/factory.js'
+ import { BROKER_REGISTRY } from '../../../domain/trading/brokers/registry.js'
++import { existsSync, writeFileSync, readFileSync } from 'fs'
++import { resolve } from 'path'
++import { execSync } from 'child_process'
+ 
+ // ==================== Credential helpers ====================
+ 
+@@ -31,6 +34,28 @@ function maskSecrets<T extends Record<string, unknown>>(obj: T): T {
+   return result
+ }
+ 
++/**
++ * Sync Longbridge credentials to MCP config.json and restart MCP.
++ * Called after a Longbridge account is saved/updated.
++ */
++async function syncLongbridgeMcpConfig(account: AccountConfig): Promise<void> {
++  if (account.type !== 'longbridge') return
++  const configPath = resolve(process.cwd(), 'packages/longport/config.json')
++  const lbConfig = {
++    appKey: (account.brokerConfig as Record<string, unknown>).appKey as string ?? '',
++    appSecret: (account.brokerConfig as Record<string, unknown>).appSecret as string ?? '',
++    accessToken: (account.brokerConfig as Record<string, unknown>).accessToken as string ?? '',
++    paper: (account.brokerConfig as Record<string, unknown>).paper === true,
++    port: 3004,
++  }
++  try {
++    writeFileSync(configPath, JSON.stringify(lbConfig, null, 2))
++    execSync('sudo systemctl restart openalice', { stdio: 'ignore' })
++  } catch (e) {
++    console.warn('[Longbridge MCP] Failed to sync config:', e)
++  }
++}
++
+ /** Restore masked values (****...) from existing config (recurses into nested objects). */
+ function unmaskSecrets(
+   body: Record<string, unknown>,
+@@ -106,6 +131,9 @@ export function createTradingConfigRoutes(ctx: EngineContext) {
+       }
+       await writeAccountsConfig(accounts)
+ 
++      // Sync Longbridge credentials to MCP config
++      await syncLongbridgeMcpConfig(validated)
++
+       // Handle enabled state changes at runtime
+       const wasEnabled = existing?.enabled !== false
+       const nowEnabled = validated.enabled !== false
+@@ -163,5 +191,89 @@ export function createTradingConfigRoutes(ctx: EngineContext) {
+     }
+   })
+ 
++  // Refresh Longbridge access token
++  app.post('/refresh-token/:id', async (c) => {
++    const id = c.req.param('id')
++    try {
++      const accounts = await readAccountsConfig()
++      const account = accounts.find(a => a.id === id)
++      if (!account) return c.json({ error: `Account "${id}" not found` }, 404)
++      if (account.type !== 'longbridge') return c.json({ error: 'Only Longbridge accounts support token refresh' }, 400)
++
++      const broker = createBroker(account)
++      await broker.init()
++      // eslint-disable-next-line @typescript-eslint/no-explicit-any
++      const result = await (broker as any).refreshToken()
++      // Update account with new refresh token
++      const updatedConfig = { ...account.brokerConfig, accessToken: result.accessToken, refreshToken: result.refreshToken, tokenExpiry: result.expiredAt }
++      const updated = { ...account, brokerConfig: updatedConfig }
++      const idx = accounts.findIndex(a => a.id === id)
++      accounts[idx] = updated
++      await writeAccountsConfig(accounts)
++
++      // Sync to MCP config
++      await syncLongbridgeMcpConfig(updated)
++
++      return c.json({ success: true, expiredAt: result.expiredAt })
++    } catch (err) {
++      const msg = err instanceof Error ? err.message : String(err)
++      return c.json({ success: false, error: msg }, 400)
++    }
++  })
++
++  // Get Longbridge OAuth authorization URL
++  app.get('/longbridge-auth-url/:id', async (c) => {
++    const id = c.req.param('id')
++    const accounts = await readAccountsConfig()
++    const account = accounts.find(a => a.id === id)
++    if (!account) return c.json({ error: `Account "${id}" not found` }, 404)
++    if (account.type !== 'longbridge') return c.json({ error: 'Only Longbridge accounts supported' }, 400)
++
++    const appKey = account.brokerConfig.appKey as string
++    const appSecret = account.brokerConfig.appSecret as string
++    if (!appKey) return c.json({ error: 'Missing appKey' }, 400)
++
++    const { buildAuthorizationUrl } = await import('../../../domain/trading/brokers/longbridge/longbridge-auth.js')
++    const redirectUri = `https://a.ytn.red/api/trading/config/longbridge-callback/${id}`
++    const { url } = buildAuthorizationUrl({ clientId: appKey, clientSecret: appSecret, redirectUri, accountId: id })
++    return c.json({ url })
++  })
++
++  // Exchange authorization code for tokens (OAuth callback)
++  app.get('/longbridge-callback/:id', async (c) => {
++    const id = c.req.param('id')
++    const code = c.req.query('code')
++    if (!code) return c.json({ error: 'Missing code parameter' }, 400)
++
++    const accounts = await readAccountsConfig()
++    const account = accounts.find(a => a.id === id)
++    if (!account) return c.json({ error: `Account "${id}" not found` }, 404)
++
++    const appKey = account.brokerConfig.appKey as string
++    const appSecret = account.brokerConfig.appSecret as string
++    const redirectUri = `https://a.ytn.red/api/trading/config/longbridge-callback/${id}`
++
++    try {
++      const { exchangeCode } = await import('../../../domain/trading/brokers/longbridge/longbridge-auth.js')
++      const result = await exchangeCode({ clientId: appKey, clientSecret: appSecret, redirectUri, accountId: id }, code)
++
++      const updatedConfig = {
++        ...account.brokerConfig,
++        refreshToken: result.refreshToken,
++        accessToken: result.accessToken,
++        tokenExpiry: result.expiresAt,
++      }
++      const idx = accounts.findIndex(a => a.id === id)
++      accounts[idx] = { ...account, brokerConfig: updatedConfig }
++      await writeAccountsConfig(accounts)
++      await syncLongbridgeMcpConfig(accounts[idx])
++
++      return c.html('<html><body><h1>授权成功！</h1><p>关闭此页面，返回 OpenAlice。</p><script>window.close()</script></body></html>')
++    } catch (err) {
++      const msg = err instanceof Error ? err.message : String(err)
++      return c.html(`<html><body><h1>授权失败</h1><p>${msg}</p><p><a href="/">返回</a></p></body></html>`)
++    }
++  })
++
+   return app
+ }

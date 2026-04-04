@@ -1,0 +1,12 @@
+diff --git a/src/core/config.ts b/src/core/config.ts
+index 3e19027..01fe14b 100644
+--- a/src/core/config.ts
++++ b/src/core/config.ts
+@@ -26,6 +26,7 @@ export const aiProviderSchema = z.object({
+     anthropic: z.string().optional(),
+     openai: z.string().optional(),
+     google: z.string().optional(),
++    minimax: z.string().optional(),
+   }).default({}),
+ })
+ 

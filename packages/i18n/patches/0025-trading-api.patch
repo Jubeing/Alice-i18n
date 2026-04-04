@@ -1,0 +1,14 @@
+diff --git a/ui/src/api/trading.ts b/ui/src/api/trading.ts
+index 059e4f5..c1c9cf5 100644
+--- a/ui/src/api/trading.ts
++++ b/ui/src/api/trading.ts
+@@ -140,4 +140,9 @@ export const tradingApi = {
+     })
+     return res.json()
+   },
++
++  async getLongbridgeAuthUrl(accountId: string): Promise<{ url?: string; error?: string }> {
++    const res = await fetch(`/api/trading/config/longbridge-auth-url/${accountId}`)
++    return res.json()
++  },
+ }

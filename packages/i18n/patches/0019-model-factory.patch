@@ -1,0 +1,27 @@
+diff --git a/src/ai-providers/vercel-ai-sdk/model-factory.ts b/src/ai-providers/vercel-ai-sdk/model-factory.ts
+index 0e42c3f..d4f7b92 100644
+--- a/src/ai-providers/vercel-ai-sdk/model-factory.ts
++++ b/src/ai-providers/vercel-ai-sdk/model-factory.ts
+@@ -38,6 +38,14 @@ export async function createModelFromConfig(override?: ModelOverride): Promise<M
+     return (config.apiKeys as Record<string, string | undefined>)[provider] || undefined
+   }
+ 
++  // MiniMax route: provider=anthropic + model=MiniMax-* OR provider=minimax uses native fetch to MiniMax endpoint
++  if (p === 'anthropic' && m.toLowerCase().startsWith('minimax') || p === 'minimax') {
++    const apiKey = resolveApiKey('minimax') ?? resolveApiKey('anthropic')
++    if (!apiKey) throw new Error('MiniMax model requires an API key — set it in AI Provider settings (minimax or anthropic field)')
++    const { createMiniMaxModel } = await import('./minimax-provider.js')
++    return { model: createMiniMaxModel(apiKey, m), key }
++  }
++
+   switch (p) {
+     case 'anthropic': {
+       const { createAnthropic } = await import('@ai-sdk/anthropic')
+@@ -55,6 +63,6 @@ export async function createModelFromConfig(override?: ModelOverride): Promise<M
+       return { model: client(m), key }
+     }
+     default:
+-      throw new Error(`Unsupported model provider: "${p}". Supported: anthropic, openai, google`)
++      throw new Error(`Unsupported model provider: "${p}". Supported: anthropic, openai, google, minimax (via anthropic provider)`)
+   }
+ }

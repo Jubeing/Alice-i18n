@@ -1,0 +1,32 @@
+diff --git a/src/domain/trading/brokers/registry.ts b/src/domain/trading/brokers/registry.ts
+index 178f03a..908a2ce 100644
+--- a/src/domain/trading/brokers/registry.ts
++++ b/src/domain/trading/brokers/registry.ts
+@@ -11,6 +11,7 @@ import type { AccountConfig } from '../../../core/config.js'
+ import { CcxtBroker } from './ccxt/CcxtBroker.js'
+ import { AlpacaBroker } from './alpaca/AlpacaBroker.js'
+ import { IbkrBroker } from './ibkr/IbkrBroker.js'
++import { LongbridgeBroker } from './longbridge/LongbridgeBroker.js'
+ 
+ // ==================== Subtitle field descriptor ====================
+ 
+@@ -78,6 +79,19 @@ export const BROKER_REGISTRY: Record<string, BrokerRegistryEntry> = {
+     ],
+     guardCategory: 'securities',
+   },
++  longbridge: {
++    configSchema: LongbridgeBroker.configSchema,
++    configFields: LongbridgeBroker.configFields,
++    fromConfig: LongbridgeBroker.fromConfig,
++    name: 'Longbridge (HK/US/SG)',
++    description: 'Longbridge — Hong Kong, US, and Singapore equities. Commission-free trading with integrated market data.',
++    badge: 'LB',
++    badgeColor: 'text-blue-400',
++    subtitleFields: [
++      { field: 'autoRefresh', label: 'Auto-refresh' },
++    ],
++    guardCategory: 'securities',
++  },
+   ibkr: {
+     configSchema: IbkrBroker.configSchema,
+     configFields: IbkrBroker.configFields,

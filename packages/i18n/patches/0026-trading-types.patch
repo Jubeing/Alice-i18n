@@ -1,0 +1,13 @@
+diff --git a/ui/src/api/types.ts b/ui/src/api/types.ts
+index 7d9ab8d..87217ad 100644
+--- a/ui/src/api/types.ts
++++ b/ui/src/api/types.ts
+@@ -65,7 +65,7 @@ export interface AIProviderConfig {
+   model: string
+   baseUrl?: string
+   loginMethod?: LoginMethod
+-  apiKeys: { anthropic?: string; openai?: string; google?: string }
++  apiKeys: { anthropic?: string; openai?: string; google?: string; minimax?: string }
+ }
+ 
+ export interface AppConfig {
