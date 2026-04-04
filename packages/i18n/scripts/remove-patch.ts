@@ -1,9 +1,16 @@
-#!/usr/bin/env node
+/**
+ * i18n patch uninstaller for OpenAlice UI.
+ *
+ * Run from the OpenAlice root directory:
+ *   node packages/i18n/scripts/remove-patch.ts
+ */
+
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 const ROOT = resolve(__dirname, '../../..')
 
 const PATCHES = [
@@ -27,7 +34,7 @@ const PATCHES = [
   '0001-main-tsx.patch',
 ]
 
-function unpatch(patchFile) {
+function unpatch(patchFile: string): void {
   const patchPath = resolve(__dirname, '../patches', patchFile)
   console.log(`Reverting patch: ${patchFile}`)
   try {

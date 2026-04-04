@@ -1,10 +1,17 @@
-#!/usr/bin/env node
+/**
+ * i18n patch installer for OpenAlice UI.
+ *
+ * Run from the OpenAlice root directory:
+ *   node packages/i18n/scripts/apply-patch.ts
+ */
+
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
-import { existsSync, readFileSync, writeFileSync } from 'fs'
+import { existsSync } from 'fs'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 const ROOT = resolve(__dirname, '../../..')
 
 const PATCHES = [
@@ -28,13 +35,13 @@ const PATCHES = [
   '0018-i18n-index-tsx.patch',
 ]
 
-function patch(patchFile) {
+function patch(patchFile: string): boolean {
   try {
-    const out = execSync(`patch -p1 -N < "${patchFile}" 2>&1`, { cwd: ROOT, encoding: 'utf8' })
+    execSync(`patch -p1 -N < "${patchFile}" 2>&1`, { cwd: ROOT, stdio: 'inherit' })
     console.log(`✓ ${patchFile.split('/').pop()}`)
     return true
   } catch (e) {
-    const out = (e.stdout || '') + (e.stderr || '')
+    const out = ((e as { stdout?: string }).stdout || '') + ((e as { stderr?: string }).stderr || '')
     // Already applied or target missing — not fatal
     if (out.includes('Skipping patch') || out.includes('No such file') || out.includes('file not found')) {
       console.log(`⚠ ${patchFile.split('/').pop()} — skipped (already patched or file missing)`)

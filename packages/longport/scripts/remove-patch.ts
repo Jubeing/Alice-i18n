@@ -1,9 +1,8 @@
-#!/usr/bin/env node
 /**
  * Alice-Longbridge patch uninstaller for OpenAlice.
  *
  * Run from the OpenAlice root directory:
- *   node packages/longport/scripts/remove-patch.mjs
+ *   node packages/longport/scripts/remove-patch.ts
  */
 
 import { readFileSync, writeFileSync, existsSync, rmSync } from 'fs'
@@ -11,7 +10,8 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 const ROOT = process.cwd()
 
 // ---- 0. Remove Alice-Longbridge packages from packages/ ----
@@ -73,7 +73,7 @@ try {
   execSync('sudo systemctl daemon-reload', { stdio: 'pipe' })
   console.log('✓ systemd service removed')
 } catch (e) {
-  console.log('⚠ Could not remove systemd service:', e.message)
+  console.log('⚠ Could not remove systemd service:', (e as Error).message)
 }
 
 console.log('\n✅ Alice-Longbridge patch removed successfully!\n')

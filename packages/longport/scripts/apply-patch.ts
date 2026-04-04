@@ -1,9 +1,8 @@
-#!/usr/bin/env node
 /**
  * Alice-Longbridge patch installer for OpenAlice.
  *
  * Run from the OpenAlice root directory:
- *   ALICE_LONGBRIDGE_ROOT=/path/to/Alice-Longbridge node packages/longport/scripts/apply-patch.mjs
+ *   ALICE_LONGBRIDGE_ROOT=/path/to/Alice-Longbridge node packages/longport/scripts/apply-patch.ts
  *
  * This script:
  *   1. Copies all Alice-Longbridge packages to OpenAlice/packages/ (workspace packages)
@@ -19,12 +18,18 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = dirname(__filename)
 const ROOT = process.cwd()
 const LONGPORT_PKG = resolve(__dirname, '..')
 
+interface Patch {
+  find: string
+  replace: string
+}
+
 // ---- Find Alice-Longbridge root ----
-function findAliceLongbridge() {
+function findAliceLongbridge(): string | null {
   const candidates = [
     process.env.ALICE_LONGBRIDGE_ROOT,
     '/tmp/Alice-Longbridge',
@@ -50,7 +55,7 @@ const ALICE_PKGS_SRC = resolve(ALICE_LONGBRIDGE_ROOT, 'packages')
 
 // ---- Helpers ----
 
-function patchFile(filePath, patches) {
+function patchFile(filePath: string, patches: Patch[]): void {
   let content = readFileSync(filePath, 'utf8')
   for (const { find, replace } of patches) {
     if (!content.includes(find)) {
@@ -64,7 +69,7 @@ function patchFile(filePath, patches) {
   console.log(`✓ Patched ${filePath}`)
 }
 
-function copyPackage(src, dest) {
+function copyPackage(src: string, dest: string): void {
   // Skip if src === dest (already in place)
   if (resolve(src) === resolve(dest)) {
     console.log(`  ✓ ${src.split('/').slice(-2).join('/')} already in place — skipping`)
@@ -213,7 +218,7 @@ if (!existsSync(systemdSrc)) {
     console.log('  • Status: sudo systemctl status openalice')
     console.log('  • Logs:   sudo journalctl -u openalice -f')
   } catch (e) {
-    console.log('⚠ Could not install systemd service (may need sudo):', e.message)
+    console.log('⚠ Could not install systemd service (may need sudo):', (e as Error).message)
   }
 }
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Longbridge token refresh cron script.
  *
@@ -6,10 +5,10 @@
  * on the 1st of every month (or when manually triggered).
  *
  * Usage:
- *   node packages/longport/scripts/refresh-token.mjs
+ *   node packages/longport/scripts/refresh-token.ts
  *
  * Crontab entry (runs on the 1st of every month at 03:00 Asia/Shanghai):
- *   0 3 1 * * cd /home/ubuntu/OpenAlice && node packages/longport/scripts/refresh-token.mjs >> ~/.openclaw/logs/longbridge_refresh.log 2>&1
+ *   0 3 1 * * cd /home/ubuntu/OpenAlice && node packages/longport/scripts/refresh-token.ts >> ~/.openclaw/logs/longbridge_refresh.log 2>&1
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'fs'
@@ -18,8 +17,32 @@ import https from 'https'
 
 const ROOT = process.env.ALICE_ROOT || '/home/ubuntu/OpenAlice'
 
-async function refreshAccessToken({ appKey, appSecret, refreshToken }) {
-  const params = new URLSearchParams({
+interface TokenResult {
+  accessToken: string
+  refreshToken: string
+  expiresAt: string
+}
+
+interface Account {
+  id: string
+  type: string
+  brokerConfig: {
+    appKey?: string
+    appSecret?: string
+    refreshToken?: string
+    tokenExpiry?: string
+  }
+}
+
+interface RefreshTokenParams {
+  appKey: string
+  appSecret: string
+  refreshToken: string
+}
+
+async function refreshAccessToken(params: RefreshTokenParams): Promise<TokenResult> {
+  const { appKey, appSecret, refreshToken } = params
+  const params_str = new URLSearchParams({
     grant_type: 'refresh_token',
     client_id: appKey,
     ...(appSecret ? { client_secret: appSecret } : {}),
@@ -34,7 +57,7 @@ async function refreshAccessToken({ appKey, appSecret, refreshToken }) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
-          'Content-Length': Buffer.byteLength(params.toString()),
+          'Content-Length': Buffer.byteLength(params_str.toString()),
         },
       },
       (res) => {
@@ -60,19 +83,19 @@ async function refreshAccessToken({ appKey, appSecret, refreshToken }) {
       },
     )
     req.on('error', reject)
-    req.write(params.toString())
+    req.write(params_str.toString())
     req.end()
   })
 }
 
-async function main() {
+async function main(): Promise<void> {
   const accountsPath = resolve(ROOT, 'data/config/accounts.json')
   if (!existsSync(accountsPath)) {
     console.error('accounts.json not found at:', accountsPath)
     process.exit(1)
   }
 
-  const accounts = JSON.parse(readFileSync(accountsPath, 'utf8'))
+  const accounts = JSON.parse(readFileSync(accountsPath, 'utf8')) as Account[]
   const longbridgeAccounts = accounts.filter((a) => a.type === 'longbridge')
 
   if (longbridgeAccounts.length === 0) {
@@ -100,7 +123,7 @@ async function main() {
       changed = true
       console.log(`✓ ${account.id}: token refreshed (new refresh token stored), expires ${result.expiresAt}`)
     } catch (err) {
-      console.error(`✗ ${account.id}: refresh failed — ${err.message}`)
+      console.error(`✗ ${account.id}: refresh failed — ${(err as Error).message}`)
       console.error('  Hint: If error is "invalid_grant", the refresh token is invalid/revoked.')
       console.error('  Solution: Re-run OAuth2 authorization to get a new refresh token.')
     }
