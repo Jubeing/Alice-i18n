@@ -8,9 +8,10 @@
  * This script:
  *   1. Copies all Alice-Longbridge packages to OpenAlice/packages/ (workspace packages)
  *   2. Applies i18n patches (ui translations)
- *   3. Patches src/domain/trading/brokers/registry.ts  (adds longbridge entry)
- *   4. Patches src/domain/trading/brokers/index.ts      (adds longbridge export)
- *   5. Installs systemd service (auto-start + crash recovery)
+ *   3. Copies broker source files to src/domain/trading/brokers/longbridge/
+ *   4. Patches src/domain/trading/brokers/registry.ts  (adds longbridge entry)
+ *   5. Patches src/domain/trading/brokers/index.ts      (adds longbridge export)
+ *   6. Installs systemd service (auto-start + crash recovery)
  */
 
 import { readFileSync, writeFileSync, existsSync, cpSync, rmSync, readdirSync, mkdirSync } from 'fs'
@@ -110,6 +111,26 @@ if (existsSync(i18nScript)) {
   }
 } else {
   console.log('  ⚠ i18n/scripts/apply-patch.mjs not found — skipping')
+}
+
+// ---- Step 2.5: Copy broker source files to src/domain/trading/brokers/longbridge/ ----
+
+console.log('\n🔧 Copying broker source files...')
+const brokerSrcDir = resolve(ROOT, 'src/domain/trading/brokers/longbridge')
+const brokerPkgSrc = resolve(LONGPORT_PKG, 'src')
+if (!existsSync(brokerPkgSrc)) {
+  console.log('  ⚠ broker source not found in packages/longport/src/ — skipping')
+} else {
+  if (!existsSync(brokerSrcDir)) mkdirSync(brokerSrcDir, { recursive: true })
+  const brokerFiles = ['index.ts', 'longbridge-auth.ts', 'LongbridgeBroker.ts', 'longbridge-contracts.ts', 'longbridge-types.ts']
+  for (const f of brokerFiles) {
+    const srcFile = resolve(brokerPkgSrc, f)
+    const destFile = resolve(brokerSrcDir, f)
+    if (existsSync(srcFile)) {
+      cpSync(srcFile, destFile, { force: true })
+    }
+  }
+  console.log('  ✓ broker source files copied to src/domain/trading/brokers/longbridge/')
 }
 
 // ---- Step 3: Patch broker registry ----
