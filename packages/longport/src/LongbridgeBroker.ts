@@ -38,7 +38,8 @@ const UNSET_DECIMAL = new Decimal(0)
 export const LongbridgeBrokerConfigSchema = z.object({
   appKey: z.string().optional(),
   appSecret: z.string().optional(),
-  accessToken: z.string().optional(),
+  // OAuth2 refresh_token — used to obtain new access tokens AND as the SDK access token
+  refreshToken: z.string().optional(),
   tokenExpiry: z.string().optional(),
   paper: z.boolean().default(true),
 })
@@ -48,7 +49,7 @@ export type LongbridgeBrokerConfig = z.infer<typeof LongbridgeBrokerConfigSchema
 export const longbridgeConfigFields: BrokerConfigField[] = [
   { name: 'appKey', type: 'text', label: 'LONGBRIDGE_APP_KEY', required: true, sensitive: true, description: 'Longbridge App Key from developer portal.' },
   { name: 'appSecret', type: 'password', label: 'LONGBRIDGE_APP_SECRET', required: true, sensitive: true, description: 'Longbridge App Secret.' },
-  { name: 'accessToken', type: 'password', label: 'LONGBRIDGE_ACCESS_TOKEN', required: true, sensitive: true, description: 'Access Token. Automatically refreshed on the 1st of each month.' },
+  { name: 'refreshToken', type: 'password', label: 'LONGBRIDGE_ACCESS_TOKEN', required: true, sensitive: true, description: 'OAuth2 Refresh Token. Use Refresh button (or re-authenticate in browser) to renew.' },
   { name: 'paper', type: 'boolean', label: 'Paper Trading', default: true, sensitive: false, description: 'Route orders to paper/sandbox environment.' },
 ]
 
@@ -74,7 +75,7 @@ export class LongbridgeBroker implements IBroker {
       label: config.label,
       appKey: bc.appKey ?? '',
       appSecret: bc.appSecret ?? '',
-      accessToken: bc.accessToken ?? '',
+      refreshToken: bc.refreshToken ?? '',
       tokenExpiry: bc.tokenExpiry,
       paper: bc.paper,
     })
@@ -90,7 +91,7 @@ export class LongbridgeBroker implements IBroker {
 
   constructor(config: {
     id: string; label?: string
-    appKey: string; appSecret: string; accessToken: string
+    appKey: string; appSecret: string; refreshToken: string
     tokenExpiry?: string; paper?: boolean
   }) {
     this.id = config.id
@@ -98,30 +99,35 @@ export class LongbridgeBroker implements IBroker {
     this.config = {
       appKey: config.appKey,
       appSecret: config.appSecret,
-      accessToken: config.accessToken,
+      refreshToken: config.refreshToken,
       tokenExpiry: config.tokenExpiry,
       paper: config.paper ?? true,
     }
   }
 
   private get auth() {
-    return { appKey: this.config.appKey ?? '', appSecret: this.config.appSecret ?? '', accessToken: this.config.accessToken ?? '' }
+    return { appKey: this.config.appKey ?? '', appSecret: this.config.appSecret ?? '', refreshToken: this.config.refreshToken ?? '' }
   }
 
-  // Token refresh is handled by monthly cron script (refresh-token.mjs)
-  // Manual refresh available via refreshToken() for UI button
-
-  async refreshToken(): Promise<{ token: string; expiredAt: string }> {
-    const result = await refreshAccessToken(this.auth)
-    this.config.accessToken = result.token
-    this.config.tokenExpiry = result.expiredAt
+  // Manual refresh: exchanges refreshToken for a new (accessToken, refreshToken) pair.
+  // Stores the new tokens in this.config.
+  async refreshToken(): Promise<{ accessToken: string; refreshToken: string; expiredAt: string }> {
+    const result = await refreshAccessToken({
+      appKey: this.config.appKey ?? '',
+      appSecret: this.config.appSecret,
+      refreshToken: this.config.refreshToken ?? '',
+    })
+    // Store new tokens
+    this.config.refreshToken = result.refreshToken
+    this.config.tokenExpiry = result.expiresAt
     return result
   }
 
   private async getTradeCtx() {
     if (this._tradeCtx) return this._tradeCtx
     const sdk = await getSDK()
-    const cfg = sdk.Config.fromApikey(this.config.appKey!, this.config.appSecret!, this.config.accessToken!, { language: sdk.Language.ZH_CN })
+    const token = this.config.refreshToken || ''
+    const cfg = sdk.Config.fromApikey(this.config.appKey!, this.config.appSecret!, token, { language: sdk.Language.ZH_CN })
     this._tradeCtx = sdk.TradeContext.new(cfg)
     return this._tradeCtx
   }
@@ -129,17 +135,17 @@ export class LongbridgeBroker implements IBroker {
   private async getQuoteCtx() {
     if (this._quoteCtx) return this._quoteCtx
     const sdk = await getSDK()
-    const cfg = sdk.Config.fromApikey(this.config.appKey!, this.config.appSecret!, this.config.accessToken!, { language: sdk.Language.ZH_CN })
+    const token = this.config.refreshToken || ''
+    const cfg = sdk.Config.fromApikey(this.config.appKey!, this.config.appSecret!, token, { language: sdk.Language.ZH_CN })
     this._quoteCtx = sdk.QuoteContext.new(cfg)
     return this._quoteCtx
   }
 
   async init(): Promise<void> {
-    if (!this.config.appKey || !this.config.appSecret || !this.config.accessToken) {
-      throw new BrokerError('CONFIG', 'Missing Longbridge credentials.')
+    if (!this.config.appKey || !this.config.appSecret || !this.config.refreshToken) {
+      throw new BrokerError('CONFIG', 'Missing Longbridge credentials (appKey, appSecret, or refreshToken).')
     }
     try {
-      await this.ensureValidToken()
       const ctx = await this.getTradeCtx()
       const assets = (await ctx.accountBalance()) as LongPortAccountAsset[]
       const total = assets.reduce((s, a) => s + Number(a.netAssets?.toString?.() ?? 0), 0)
@@ -170,7 +176,6 @@ export class LongbridgeBroker implements IBroker {
 
   async placeOrder(contract: Contract, order: Order, _tpsl?: TpSlParams): Promise<PlaceOrderResult> {
     try {
-      await this.ensureValidToken()
       const ctx = await this.getTradeCtx()
       const sym = resolveSymbol(contract)
       if (!sym) return { success: false, error: 'Cannot resolve contract symbol' }
@@ -195,7 +200,6 @@ export class LongbridgeBroker implements IBroker {
 
   async modifyOrder(orderId: string, changes: Partial<Order>): Promise<PlaceOrderResult> {
     try {
-      await this.ensureValidToken()
       const ctx = await this.getTradeCtx()
       const sdk = await getSDK()
       const { Decimal: LBDecimal } = sdk
@@ -211,7 +215,6 @@ export class LongbridgeBroker implements IBroker {
 
   async cancelOrder(orderId: string): Promise<PlaceOrderResult> {
     try {
-      await this.ensureValidToken()
       const ctx = await this.getTradeCtx()
       await ctx.cancelOrder(orderId)
       const orderState = new OrderState()
