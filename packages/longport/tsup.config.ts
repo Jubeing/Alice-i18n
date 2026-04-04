@@ -1,25 +1,14 @@
 import { defineConfig } from 'tsup'
 
-export default defineConfig([
-  // Broker build
-  {
-    entry: ['src/index.ts'],
-    format: ['esm'],
-    dts: true,
-    clean: true,
-    sourcemap: true,
-    target: 'node20',
-    external: ['longbridge'],
-    outDir: 'dist',
-  },
-  // MCP server build
-  {
-    entry: ['mcp/index.ts'],
-    format: ['esm'],
-    clean: false,
-    sourcemap: true,
-    target: 'node20',
-    external: ['longbridge', '@modelcontextprotocol/sdk'],
-    outDir: 'dist-mcp',
-  },
-])
+// MCP server build only — the broker source (src/) is copied to
+// src/domain/trading/brokers/longbridge/ and built as part of
+// the main OpenAlice build (pnpm build:backend).
+export default defineConfig({
+  entry: ['mcp/index.ts'],
+  format: ['esm'],
+  clean: true,
+  sourcemap: true,
+  target: 'node20',
+  external: ['longbridge', '@modelcontextprotocol/sdk'],
+  outDir: 'dist-mcp',
+})
