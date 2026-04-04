@@ -106,12 +106,7 @@ if (existsSync(i18nScript)) {
   try {
     execSync(`node ${i18nScript}`, { cwd: ROOT, stdio: 'inherit' })
   } catch (e) {
-    // TradingPage patch may conflict with longport patches — non-fatal
-    if (e.status === 1) {
-      console.log('⚠ Some i18n patches failed to apply (TradingPage may conflict with longport) — continuing')
-    } else {
-      console.log('⚠ i18n patch script failed — continuing...')
-    }
+    console.log('⚠ i18n script failed — continuing...')
   }
 } else {
   console.log('  ⚠ i18n/scripts/apply-patch.mjs not found — skipping')

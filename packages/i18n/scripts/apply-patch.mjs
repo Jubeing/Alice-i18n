@@ -10,19 +10,19 @@ const ROOT = resolve(__dirname, '../../..')
 const PATCHES = [
   '0001-main-tsx.patch',
   '0002-Sidebar-tsx.patch',
-  '0003-SettingsPage.tsx.patch',
-  '0004-DevPage.tsx.patch',
-  '0005-AIProviderPage.tsx.patch',
-  '0006-TradingPage.tsx.patch',
-  '0007-ToolsPage.tsx.patch',
-  '0008-ConnectorsPage.tsx.patch',
-  '0009-NewsPage.tsx.patch',
-  '0010-MarketDataPage.tsx.patch',
-  '0011-HeartbeatPage.tsx.patch',
-  '0012-AgentStatusPage.tsx.patch',
-  '0013-EventsPage.tsx.patch',
-  '0014-PortfolioPage.tsx.patch',
-  '0015-ChatPage.tsx.patch',
+  '0003-SettingsPage-tsx.patch',
+  '0004-DevPage-tsx.patch',
+  '0005-AIProviderPage-tsx.patch',
+  '0006-TradingPage-tsx.patch',
+  '0007-ToolsPage-tsx.patch',
+  '0008-ConnectorsPage-tsx.patch',
+  '0009-NewsPage-tsx.patch',
+  '0010-MarketDataPage-tsx.patch',
+  '0011-HeartbeatPage-tsx.patch',
+  '0012-AgentStatusPage-tsx.patch',
+  '0013-EventsPage-tsx.patch',
+  '0014-PortfolioPage-tsx.patch',
+  '0015-ChatPage-tsx.patch',
   '0016-i18n-en-ts.patch',
   '0017-i18n-zh-ts.patch',
   '0018-i18n-index-tsx.patch',
@@ -30,15 +30,20 @@ const PATCHES = [
 
 function patch(patchFile) {
   try {
-    execSync(`patch -p1 < "${patchFile}"`, { cwd: ROOT, stdio: 'pipe' })
+    const out = execSync(`patch -p1 -N < "${patchFile}" 2>&1`, { cwd: ROOT, encoding: 'utf8' })
     console.log(`✓ ${patchFile.split('/').pop()}`)
     return true
   } catch (e) {
-    const stderr = e.stderr?.toString() || ''
-    if (stderr.includes('patch does not apply') || stderr.includes('No such file')) {
-      console.log(`⚠ ${patchFile.split('/').pop()} — skipped (file not found or already patched)`)
-      return true // not fatal
+    const out = (e.stdout || '') + (e.stderr || '')
+    // Already applied or target missing — not fatal
+    if (out.includes('Skipping patch') || out.includes('No such file') || out.includes('file not found')) {
+      console.log(`⚠ ${patchFile.split('/').pop()} — skipped (already patched or file missing)`)
+      // Clean up any .rej files created by patch -N
+      const base = patchFile.replace(/\.patch$/, '')
+      try { execSync(`rm -f "${base}.rej"`, { stdio: 'ignore' }) } catch {}
+      return true
     }
+    // Genuine failure
     console.log(`✗ ${patchFile.split('/').pop()} — failed`)
     return false
   }
