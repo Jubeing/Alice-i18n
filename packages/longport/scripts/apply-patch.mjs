@@ -26,9 +26,10 @@ const LONGPORT_PKG = resolve(__dirname, '..')
 function findAliceLongbridge() {
   const candidates = [
     process.env.ALICE_LONGBRIDGE_ROOT,
-    resolve(__dirname, '../../..'),
+    '/tmp/Alice-Longbridge',
     '/home/ubuntu/.openclaw/workspace/Alice-Longbridge',
     resolve(ROOT, '../Alice-Longbridge'),
+    resolve(__dirname, '../../..'),
   ]
   for (const c of candidates) {
     if (c && existsSync(resolve(c, 'packages'))) return c
@@ -63,6 +64,11 @@ function patchFile(filePath, patches) {
 }
 
 function copyPackage(src, dest) {
+  // Skip if src === dest (already in place)
+  if (resolve(src) === resolve(dest)) {
+    console.log(`  ✓ ${src.split('/').slice(-2).join('/')} already in place — skipping`)
+    return
+  }
   if (!existsSync(dest)) mkdirSync(dest, { recursive: true })
   const files = readdirSync(src).filter(f => f !== 'node_modules' && f !== 'dist')
   for (const f of files) {
@@ -81,8 +87,6 @@ console.log('\n📦 Installing Alice-Longbridge patch (workspace packages)...\n'
 
 console.log('🔧 Copying Alice-Longbridge packages to packages/...')
 
-// NOTE: longport-mcp is now merged INTO longport (under mcp/ subdirectory).
-// Only copy packages that exist in Alice-Longbridge.
 const patchPackages = ['i18n', 'longport', 'opentypebb', 'ibkr']
 for (const pkg of patchPackages) {
   const src = resolve(ALICE_PKGS_SRC, pkg)
@@ -102,7 +106,12 @@ if (existsSync(i18nScript)) {
   try {
     execSync(`node ${i18nScript}`, { cwd: ROOT, stdio: 'inherit' })
   } catch (e) {
-    console.log('⚠ i18n patch script failed — continuing...')
+    // TradingPage patch may conflict with longport patches — non-fatal
+    if (e.status === 1) {
+      console.log('⚠ Some i18n patches failed to apply (TradingPage may conflict with longport) — continuing')
+    } else {
+      console.log('⚠ i18n patch script failed — continuing...')
+    }
   }
 } else {
   console.log('  ⚠ i18n/scripts/apply-patch.mjs not found — skipping')
@@ -174,7 +183,6 @@ if (!existsSync(systemdSrc)) {
 } else {
   let serviceContent = readFileSync(systemdSrc, 'utf8')
   serviceContent = serviceContent.replace(/\{\{OPENALICE_ROOT\}\}/g, ROOT)
-  // MCP server is now at packages/longport/dist-mcp/index.js (merged into longport package)
   serviceContent = serviceContent.replace(/\{\{LONGBRIDGE_MCP_ROOT\}\}/g, resolve(ROOT, 'packages/longport/dist-mcp'))
 
   const tmpPath = '/tmp/openalice.service'

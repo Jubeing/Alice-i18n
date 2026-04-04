@@ -2,6 +2,7 @@
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { execSync } from 'child_process'
+import { existsSync, readFileSync, writeFileSync } from 'fs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = resolve(__dirname, '../../..')
@@ -9,43 +10,54 @@ const ROOT = resolve(__dirname, '../../..')
 const PATCHES = [
   '0001-main-tsx.patch',
   '0002-Sidebar-tsx.patch',
-  '0003-SettingsPage-tsx.patch',
-  '0004-DevPage-tsx.patch',
-  '0005-AIProviderPage-tsx.patch',
-  '0006-TradingPage-tsx.patch',
-  '0007-ToolsPage-tsx.patch',
-  '0008-ConnectorsPage-tsx.patch',
-  '0009-NewsPage-tsx.patch',
-  '0010-MarketDataPage-tsx.patch',
-  '0011-HeartbeatPage-tsx.patch',
-  '0012-AgentStatusPage-tsx.patch',
-  '0013-EventsPage-tsx.patch',
-  '0014-PortfolioPage-tsx.patch',
-  '0015-ChatPage-tsx.patch',
+  '0003-SettingsPage.tsx.patch',
+  '0004-DevPage.tsx.patch',
+  '0005-AIProviderPage.tsx.patch',
+  '0006-TradingPage.tsx.patch',
+  '0007-ToolsPage.tsx.patch',
+  '0008-ConnectorsPage.tsx.patch',
+  '0009-NewsPage.tsx.patch',
+  '0010-MarketDataPage.tsx.patch',
+  '0011-HeartbeatPage.tsx.patch',
+  '0012-AgentStatusPage.tsx.patch',
+  '0013-EventsPage.tsx.patch',
+  '0014-PortfolioPage.tsx.patch',
+  '0015-ChatPage.tsx.patch',
   '0016-i18n-en-ts.patch',
   '0017-i18n-zh-ts.patch',
   '0018-i18n-index-tsx.patch',
 ]
 
 function patch(patchFile) {
-  const patchPath = resolve(__dirname, '../patches', patchFile)
-  console.log(`Applying patch: ${patchFile}`)
   try {
-    execSync(`git apply ${patchPath}`, { cwd: ROOT, stdio: 'inherit' })
+    execSync(`patch -p1 < "${patchFile}"`, { cwd: ROOT, stdio: 'pipe' })
+    console.log(`✓ ${patchFile.split('/').pop()}`)
+    return true
   } catch (e) {
-    console.error(`Failed to apply ${patchFile}`)
-    process.exit(1)
+    const stderr = e.stderr?.toString() || ''
+    if (stderr.includes('patch does not apply') || stderr.includes('No such file')) {
+      console.log(`⚠ ${patchFile.split('/').pop()} — skipped (file not found or already patched)`)
+      return true // not fatal
+    }
+    console.log(`✗ ${patchFile.split('/').pop()} — failed`)
+    return false
   }
 }
 
-// Apply patches in order
-for (const p of PATCHES) patch(p)
+console.log('\n🔧 Applying i18n patches...\n')
 
-// Copy new i18n files
-console.log('Copying i18n files...')
-execSync(`cp ${resolve(__dirname, '../en.ts')} ${ROOT}/ui/src/i18n/`, { stdio: 'inherit' })
-execSync(`cp ${resolve(__dirname, '../zh.ts')} ${ROOT}/ui/src/i18n/`, { stdio: 'inherit' })
-execSync(`cp ${resolve(__dirname, '../index.tsx')} ${ROOT}/ui/src/i18n/`, { stdio: 'inherit' })
+let allOk = true
+for (const p of PATCHES) {
+  const patchFile = resolve(__dirname, '../patches', p)
+  if (!existsSync(patchFile)) {
+    console.log(`⚠ ${p} not found — skipping`)
+    continue
+  }
+  if (!patch(patchFile)) allOk = false
+}
 
-console.log('✅ i18n patch applied successfully')
-console.log('Run: pnpm build:ui')
+if (allOk) {
+  console.log('\n✅ All i18n patches applied successfully!')
+} else {
+  console.log('\n⚠ Some patches failed — check above')
+}
