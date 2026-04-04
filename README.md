@@ -1,6 +1,6 @@
 # Alice-Longbridge
 
-Longbridge broker integration patch for OpenAlice.
+OpenAlice 的中文本地化补丁包 + Longbridge 券商集成。
 
 ## 安装方式
 
@@ -9,68 +9,94 @@ Longbridge broker integration patch for OpenAlice.
 git clone https://github.com/TraderAlice/OpenAlice.git
 cd OpenAlice
 
-# 2. 复制 Longbridge 补丁包
-cp -r Alice-Longbridge/packages/longport packages/
+# 2. 设置 Alice-Longbridge 路径（补丁包根目录）
+export ALICE_LONGBRIDGE_ROOT=/path/to/Alice-Longbridge
 
-# 3. 应用补丁（自动安装 systemd 服务 → 开机自启 + 崩溃自恢复）
+# 3. 应用补丁（workspace 包 + i18n 翻译 + systemd 服务）
 node packages/longport/scripts/apply-patch.mjs
 
 # 4. 安装依赖 + 构建
 pnpm install
-pnpm build:backend && pnpm build:ui
+pnpm build
 
 # 5. 重载新构建
 sudo systemctl restart openalice
 ```
 
-> 应用补丁后 OpenAlice 会自动启动，并注册为 systemd 服务，开机自动运行、崩溃自动恢复。
+> 应用补丁后 OpenAlice 会自动注册为 systemd 服务，开机自动运行、崩溃自动恢复。
 
-## 补丁包结构
+## 包含内容
+
+### 工作区包（packages/）
+| 包 | 说明 |
+|----|------|
+| `i18n` | OpenAlice UI 中文本地化（所有页面翻译） |
+| `longport` | Longbridge 券商适配器 + MCP 服务器 |
+| `opentypebb` | OpenBB 数据集成 |
+| `ibkr` | IBKR 券商适配器 |
+
+### 补丁覆盖的源文件
+- `src/domain/trading/brokers/` — 券商注册与索引
+- `ui/src/` — UI 翻译覆盖
+
+## 目录结构
 
 ```
 packages/longport/
-├── src/                    # Broker 源码
+├── src/                    # Broker 源码（LongbridgeBroker 等）
+├── mcp/                    # MCP 服务器入口（longport-mcp 合并）
+│   └── index.ts
+├── dist-mcp/               # MCP 构建输出（systemd 引用此路径）
 ├── systemd/
-│   └── openalice.service   # systemd 服务（开机自启 + 崩溃自恢复）
+│   └── openalice.service   # systemd 服务
 ├── scripts/
-│   ├── apply-patch.mjs     # 安装补丁
+│   ├── apply-patch.mjs     # 安装补丁（含 i18n 翻译）
 │   ├── remove-patch.mjs   # 卸载补丁
-│   └── refresh-token.mjs   # Token 刷新脚本
-├── package.json
+│   └── refresh-token.mjs   # Token 每月 1 号自动刷新
+├── tsup.config.ts          # Broker 构建配置
+├── tsup-mcp.config.ts      # MCP 构建配置
 └── README.md
 ```
 
 ## systemd 服务
 
-- 服务名: `openalice`
-- 状态: `sudo systemctl status openalice`
-- 日志: `sudo journalctl -u openalice -f`
-- 重启: `sudo systemctl restart openalice`
-- 停止: `sudo systemctl stop openalice`
+```bash
+sudo systemctl status openalice   # 查看状态
+sudo journalctl -u openalice -f   # 查看日志
+sudo systemctl restart openalice  # 重启
+sudo systemctl stop openalice     # 停止
+```
 
-## 功能
+## Longbridge Token 自动刷新
 
-- 市场: 香港 (SEHK)、美国 (NASDAQ/NYSE)、新加坡 (SGX)
-- 订单类型: 市价单、限价单、止损单、止损限价单
-- 自动刷新 Token: 使用 HMAC-SHA256 自动续期
-- 动态 UI: 在 OpenAlice 交易页面自动显示 Longbridge
+Access Token 有效期约 90 天，系统会在**每月 1 号凌晨 4 点**自动刷新所有 Longbridge 账户的 Token。
 
-## Token 设置
+### Crontab 设置
+```bash
+# 编辑 crontab
+crontab -e
 
-### 手动 Token
-1. 进入 Trading → New Account → Platform → Longbridge
-2. 填入 App Key、App Secret、Access Token
-3. 关闭 Auto-refresh Token（默认）
+# 添加以下行：
+0 4 1 * * cd /home/ubuntu/OpenAlice && node packages/longport/scripts/refresh-token.mjs
+```
 
-### 自动刷新 Token（推荐）
-Access Token 约 90 天过期。开启自动刷新后，系统会使用 HMAC-SHA256 自动续期。
+### 手动刷新 Token
+在 Trading → 编辑账户 → 找到 LONGBRIDGE_ACCESS_TOKEN 字段旁边的 ↻ 按钮即可手动刷新。
 
-1. 开启 Auto-refresh Token
-2. 设置 cron 任务：0 4 1 * * cd /path/to/OpenAlice && node packages/longport/scripts/refresh-token.mjs
+## i18n 翻译
+
+补丁安装时自动应用所有 i18n 翻译，包括：
+- 所有 UI 页面（Trading、Settings、AI Provider 等）
+- 中文（zh）和英文（en）语言文件
+- 语言切换器
 
 ## 卸载
+
+```bash
 node packages/longport/scripts/remove-patch.mjs
-pnpm build:backend && pnpm build:ui
+pnpm build
+sudo systemctl restart openalice
+```
 
 ## 依赖
 - Node.js 20+

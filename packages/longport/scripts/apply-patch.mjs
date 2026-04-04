@@ -7,9 +7,10 @@
  *
  * This script:
  *   1. Copies all Alice-Longbridge packages to OpenAlice/packages/ (workspace packages)
- *   2. Patches src/domain/trading/brokers/registry.ts  (adds longbridge entry)
- *   3. Patches src/domain/trading/brokers/index.ts      (adds longbridge export)
- *   4. Installs systemd service (auto-start + crash recovery)
+ *   2. Applies i18n patches (ui translations)
+ *   3. Patches src/domain/trading/brokers/registry.ts  (adds longbridge entry)
+ *   4. Patches src/domain/trading/brokers/index.ts      (adds longbridge export)
+ *   5. Installs systemd service (auto-start + crash recovery)
  */
 
 import { readFileSync, writeFileSync, existsSync, cpSync, rmSync, readdirSync, mkdirSync } from 'fs'
@@ -22,13 +23,12 @@ const ROOT = process.cwd()
 const LONGPORT_PKG = resolve(__dirname, '..')
 
 // ---- Find Alice-Longbridge root ----
-// Normally a sibling of OpenAlice (~/Alice-Longbridge), but can also be in workspace.
 function findAliceLongbridge() {
   const candidates = [
     process.env.ALICE_LONGBRIDGE_ROOT,
-    resolve(__dirname, '../../..'),                           // from packages/longport/scripts/
-    '/home/ubuntu/.openclaw/workspace/Alice-Longbridge',     // absolute workspace path
-    resolve(ROOT, '../Alice-Longbridge'),                     // sibling of OpenAlice
+    resolve(__dirname, '../../..'),
+    '/home/ubuntu/.openclaw/workspace/Alice-Longbridge',
+    resolve(ROOT, '../Alice-Longbridge'),
   ]
   for (const c of candidates) {
     if (c && existsSync(resolve(c, 'packages'))) return c
@@ -81,7 +81,9 @@ console.log('\n📦 Installing Alice-Longbridge patch (workspace packages)...\n'
 
 console.log('🔧 Copying Alice-Longbridge packages to packages/...')
 
-const patchPackages = ['i18n', 'longport', 'longport-mcp', 'opentypebb', 'ibkr']
+// NOTE: longport-mcp is now merged INTO longport (under mcp/ subdirectory).
+// Only copy packages that exist in Alice-Longbridge.
+const patchPackages = ['i18n', 'longport', 'opentypebb', 'ibkr']
 for (const pkg of patchPackages) {
   const src = resolve(ALICE_PKGS_SRC, pkg)
   const dest = resolve(ROOT, 'packages', pkg)
@@ -92,7 +94,21 @@ for (const pkg of patchPackages) {
   copyPackage(src, dest)
 }
 
-// ---- Step 2: Patch broker registry ----
+// ---- Step 2: Apply i18n patches ----
+
+console.log('\n🔧 Applying i18n patches...')
+const i18nScript = resolve(ALICE_PKGS_SRC, 'i18n/scripts/apply-patch.mjs')
+if (existsSync(i18nScript)) {
+  try {
+    execSync(`node ${i18nScript}`, { cwd: ROOT, stdio: 'inherit' })
+  } catch (e) {
+    console.log('⚠ i18n patch script failed — continuing...')
+  }
+} else {
+  console.log('  ⚠ i18n/scripts/apply-patch.mjs not found — skipping')
+}
+
+// ---- Step 3: Patch broker registry ----
 
 console.log('\n🔧 Patching broker registry...')
 const registryPath = resolve(ROOT, 'src/domain/trading/brokers/registry.ts')
@@ -129,7 +145,7 @@ if (registryContent.includes("'longbridge'")) {
   console.log('✓ registry.ts patched')
 }
 
-// ---- Step 3: Patch broker index ----
+// ---- Step 4: Patch broker index ----
 
 console.log('\n🔧 Patching broker index...')
 const indexPath = resolve(ROOT, 'src/domain/trading/brokers/index.ts')
@@ -146,7 +162,7 @@ if (indexContent.includes("'./longbridge'") || indexContent.includes('@traderali
   ])
 }
 
-// ---- Step 4: Install systemd service (auto-start + crash recovery) ----
+// ---- Step 5: Install systemd service (auto-start + crash recovery) ----
 
 console.log('\n🔧 Installing systemd service (auto-start + crash recovery)...')
 
@@ -158,7 +174,8 @@ if (!existsSync(systemdSrc)) {
 } else {
   let serviceContent = readFileSync(systemdSrc, 'utf8')
   serviceContent = serviceContent.replace(/\{\{OPENALICE_ROOT\}\}/g, ROOT)
-  serviceContent = serviceContent.replace(/\{\{LONGBRIDGE_MCP_ROOT\}\}/g, resolve(ROOT, 'packages/longport-mcp'))
+  // MCP server is now at packages/longport/dist-mcp/index.js (merged into longport package)
+  serviceContent = serviceContent.replace(/\{\{LONGBRIDGE_MCP_ROOT\}\}/g, resolve(ROOT, 'packages/longport/dist-mcp'))
 
   const tmpPath = '/tmp/openalice.service'
   writeFileSync(tmpPath, serviceContent)
@@ -179,6 +196,6 @@ if (!existsSync(systemdSrc)) {
 console.log('\n✅ Alice-Longbridge patch applied successfully!\n')
 console.log('Next steps:')
 console.log('  1. pnpm install                  # install all dependencies')
-console.log('  2. pnpm build                    # build everything')
+console.log('  2. pnpm build                    # build everything (broker + MCP)')
 console.log('  3. sudo systemctl restart openalice   # reload with new build')
 console.log('\n🎉 All done!')

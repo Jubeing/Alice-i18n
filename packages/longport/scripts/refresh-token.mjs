@@ -2,12 +2,13 @@
 /**
  * Longbridge token refresh cron script.
  *
- * Run this via crontab to auto-refresh Longbridge tokens every 90 days.
+ * Auto-refreshes Longbridge access tokens for all Longbridge accounts
+ * on the 1st of every month (or when manually triggered).
  *
  * Crontab entry (runs on the 1st of every month at 4 AM):
  *   0 4 1 * * cd /home/ubuntu/OpenAlice && node packages/longport/scripts/refresh-token.mjs
  *
- * Alternatively, call `api.trading.refreshLongPortToken(accountId)` via the MCP tool interface.
+ * Tokens are refreshed via HMAC-SHA256 signing and last 90 days.
  */
 
 import { readFileSync, writeFileSync, existsSync } from 'fs'
@@ -15,27 +16,26 @@ import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
-const ROOT = resolve(__dirname, '../..')
+// ROOT is OpenAlice root when run via cron
+const ROOT = process.env.ALICE_ROOT || '/home/ubuntu/OpenAlice'
 
 async function main() {
   const accountsPath = resolve(ROOT, 'data/config/accounts.json')
   if (!existsSync(accountsPath)) {
-    console.error('accounts.json not found')
+    console.error('accounts.json not found at:', accountsPath)
     process.exit(1)
   }
 
   const accounts = JSON.parse(readFileSync(accountsPath, 'utf8'))
-  const longbridgeAccounts = accounts.filter((a) => a.type === 'longbridge' && a.brokerConfig?.autoRefresh)
+  // Process ALL Longbridge accounts (autoRefresh field removed, always refresh on 1st of month)
+  const longbridgeAccounts = accounts.filter((a) => a.type === 'longbridge')
 
   if (longbridgeAccounts.length === 0) {
-    console.log('No Longbridge accounts with auto-refresh enabled.')
+    console.log('No Longbridge accounts found.')
     return
   }
 
-  const { refreshAccessToken } = await import('../src/longbridge-auth.js').catch(() => {
-    // Try built dist
-    return import('../../packages/longport/dist/longbridge-auth.js')
-  })
+  const { refreshAccessToken } = await import(resolve(ROOT, 'packages/longport/dist/longbridge-auth.js'))
 
   for (const account of longbridgeAccounts) {
     const { appKey, appSecret, accessToken } = account.brokerConfig

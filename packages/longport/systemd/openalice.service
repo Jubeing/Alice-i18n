@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory={{OPENALICE_ROOT}}
-ExecStart=/bin/bash -c '/usr/bin/node {{OPENALICE_ROOT}}/dist/main.js & /usr/bin/node {{LONGBRIDGE_MCP_ROOT}}/dist/index.js'
+ExecStart=/bin/bash -c '/usr/bin/node {{OPENALICE_ROOT}}/dist/main.js & /usr/bin/node {{LONGBRIDGE_MCP_ROOT}}/index.js'
 Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
