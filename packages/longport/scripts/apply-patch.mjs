@@ -1,18 +1,15 @@
 #!/usr/bin/env node
 /**
- * Longbridge broker patch installer for OpenAlice.
+ * Alice-Longbridge patch installer for OpenAlice.
  *
  * Run from the OpenAlice root directory:
- *   node packages/longport/scripts/apply-patch.mjs
+ *   ALICE_LONGBRIDGE_ROOT=/path/to/Alice-Longbridge node packages/longport/scripts/apply-patch.mjs
  *
  * This script:
- *   1. Copies longport-mcp to packages/longport-mcp/
- *   2. Copies broker files to src/domain/trading/brokers/longbridge/
- *   3. Patches src/domain/trading/brokers/registry.ts  (adds longbridge entry)
- *   4. Patches src/domain/trading/brokers/index.ts      (adds longbridge export)
- *   5. Adds longbridge dependency to the root package.json
- *   6. Creates tsup.config.ts for the root build
- *   7. Installs systemd service (auto-start + crash recovery)
+ *   1. Copies all Alice-Longbridge packages to OpenAlice/packages/ (workspace packages)
+ *   2. Patches src/domain/trading/brokers/registry.ts  (adds longbridge entry)
+ *   3. Patches src/domain/trading/brokers/index.ts      (adds longbridge export)
+ *   4. Installs systemd service (auto-start + crash recovery)
  */
 
 import { readFileSync, writeFileSync, existsSync, cpSync, rmSync, readdirSync, mkdirSync } from 'fs'
@@ -23,20 +20,33 @@ import { execSync } from 'child_process'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = process.cwd()
 const LONGPORT_PKG = resolve(__dirname, '..')
-// Alice-Longbridge source root — set ALICE_LONGBRIDGE_ROOT env var to override
-const ALICE_LONGBRIDGE_ROOT = process.env.ALICE_LONGBRIDGE_ROOT
-  || resolve(ROOT, '../Alice-Longbridge')
-const LONGBP_PORT_MCP_PKG = resolve(ALICE_LONGBRIDGE_ROOT, 'packages/longport-mcp')
-const LONGBRIDGE_SRC_DEST = resolve(ROOT, 'src/domain/trading/brokers/longbridge')
-const LONGPORT_MCP_DEST = resolve(ROOT, 'packages/longport-mcp')
 
-function readJson(path) {
-  return JSON.parse(readFileSync(path, 'utf8'))
+// ---- Find Alice-Longbridge root ----
+// Normally a sibling of OpenAlice (~/Alice-Longbridge), but can also be in workspace.
+function findAliceLongbridge() {
+  const candidates = [
+    process.env.ALICE_LONGBRIDGE_ROOT,
+    resolve(__dirname, '../../..'),                           // from packages/longport/scripts/
+    '/home/ubuntu/.openclaw/workspace/Alice-Longbridge',     // absolute workspace path
+    resolve(ROOT, '../Alice-Longbridge'),                     // sibling of OpenAlice
+  ]
+  for (const c of candidates) {
+    if (c && existsSync(resolve(c, 'packages'))) return c
+  }
+  return null
 }
 
-function writeJson(path, obj) {
-  writeFileSync(path, JSON.stringify(obj, null, 2) + '\n')
+const ALICE_LONGBRIDGE_ROOT = findAliceLongbridge()
+if (!ALICE_LONGBRIDGE_ROOT) {
+  console.error('❌ Could not find Alice-Longbridge source (tried common locations)')
+  console.error('   Set ALICE_LONGBRIDGE_ROOT env var to point to Alice-Longbridge root')
+  process.exit(1)
 }
+console.log(`   Alice-Longbridge root: ${ALICE_LONGBRIDGE_ROOT}`)
+
+const ALICE_PKGS_SRC = resolve(ALICE_LONGBRIDGE_ROOT, 'packages')
+
+// ---- Helpers ----
 
 function patchFile(filePath, patches) {
   let content = readFileSync(filePath, 'utf8')
@@ -52,77 +62,37 @@ function patchFile(filePath, patches) {
   console.log(`✓ Patched ${filePath}`)
 }
 
-console.log('\n📦 Installing Longbridge broker patch...\n')
-
-// ---- Step 0: Copy longport-mcp to OpenAlice packages ----
-
-console.log('\n🔧 Installing longport-mcp...')
-if (!existsSync(LONGBP_PORT_MCP_PKG)) {
-  console.error('❌ longport-mcp not found in Alice-Longbridge/packages/longport-mcp')
-  process.exit(1)
+function copyPackage(src, dest) {
+  if (!existsSync(dest)) mkdirSync(dest, { recursive: true })
+  const files = readdirSync(src).filter(f => f !== 'node_modules' && f !== 'dist')
+  for (const f of files) {
+    cpSync(resolve(src, f), resolve(dest, f), { force: true, recursive: true })
+  }
+  const srcName = src.split('/').slice(-2).join('/')
+  const destName = dest.split('/').slice(-2).join('/')
+  console.log(`  ✓ ${srcName} → ${destName}`)
 }
 
-if (!existsSync(LONGPORT_MCP_DEST)) {
-  mkdirSync(LONGPORT_MCP_DEST, { recursive: true })
+// ---- Main ----
+
+console.log('\n📦 Installing Alice-Longbridge patch (workspace packages)...\n')
+
+// ---- Step 1: Copy all Alice-Longbridge packages to OpenAlice/packages/ ----
+
+console.log('🔧 Copying Alice-Longbridge packages to packages/...')
+
+const patchPackages = ['i18n', 'longport', 'longport-mcp', 'opentypebb', 'ibkr']
+for (const pkg of patchPackages) {
+  const src = resolve(ALICE_PKGS_SRC, pkg)
+  const dest = resolve(ROOT, 'packages', pkg)
+  if (!existsSync(src)) {
+    console.log(`  ⚠ ${pkg} not found in Alice-Longbridge/packages/ — skipping`)
+    continue
+  }
+  copyPackage(src, dest)
 }
 
-// Copy longport-mcp files (excluding node_modules and dist)
-const mcpFiles = readdirSync(LONGBP_PORT_MCP_PKG).filter(f => f !== 'node_modules' && f !== 'dist')
-for (const f of mcpFiles) {
-  cpSync(resolve(LONGBP_PORT_MCP_PKG, f), resolve(LONGPORT_MCP_DEST, f), { force: true, recursive: true })
-}
-console.log(`✓ Copied longport-mcp to packages/longport-mcp/`)
-
-// ---- Step 1: Copy broker files to src/ ----
-
-if (!existsSync(resolve(LONGPORT_PKG, 'src'))) {
-  console.error('❌ Source files not found in packages/longport/src')
-  process.exit(1)
-}
-
-if (!existsSync(LONGBRIDGE_SRC_DEST)) {
-  mkdirSync(LONGBRIDGE_SRC_DEST, { recursive: true })
-}
-
-const srcFiles = readdirSync(resolve(LONGPORT_PKG, 'src'))
-for (const f of srcFiles) {
-  cpSync(resolve(LONGPORT_PKG, 'src', f), resolve(LONGBRIDGE_SRC_DEST, f), { force: true })
-}
-console.log(`✓ Copied ${srcFiles.length} source files to src/domain/trading/brokers/longbridge/`)
-
-// ---- Step 2: Add longbridge to root dependencies ----
-
-console.log('\n🔧 Adding longbridge dependency...')
-const rootPkg = readJson(resolve(ROOT, 'package.json'))
-
-if (!rootPkg.dependencies?.longbridge) {
-  rootPkg.dependencies = { ...rootPkg.dependencies, longbridge: '^4.0.0' }
-}
-
-writeJson(resolve(ROOT, 'package.json'), rootPkg)
-console.log('✓ package.json updated')
-
-// ---- Step 3: Create root tsup.config.ts ----
-
-const tsupPath = resolve(ROOT, 'tsup.config.ts')
-const tsupContent = `import { defineConfig } from 'tsup'
-
-export default defineConfig({
-  entry: ['src/main.ts'],
-  format: ['esm'],
-  dts: true,
-  sourcemap: true,
-  target: 'node20',
-  external: ['longbridge', 'sharp'],
-})
-`
-
-if (!existsSync(tsupPath)) {
-  writeFileSync(tsupPath, tsupContent)
-  console.log('✓ Created tsup.config.ts')
-}
-
-// ---- Step 4: Patch registry.ts ----
+// ---- Step 2: Patch broker registry ----
 
 console.log('\n🔧 Patching broker registry...')
 const registryPath = resolve(ROOT, 'src/domain/trading/brokers/registry.ts')
@@ -159,7 +129,7 @@ if (registryContent.includes("'longbridge'")) {
   console.log('✓ registry.ts patched')
 }
 
-// ---- Step 5: Patch index.ts ----
+// ---- Step 3: Patch broker index ----
 
 console.log('\n🔧 Patching broker index...')
 const indexPath = resolve(ROOT, 'src/domain/trading/brokers/index.ts')
@@ -176,7 +146,7 @@ if (indexContent.includes("'./longbridge'") || indexContent.includes('@traderali
   ])
 }
 
-// ---- Step 6: Install systemd service (auto-start + crash recovery) ----
+// ---- Step 4: Install systemd service (auto-start + crash recovery) ----
 
 console.log('\n🔧 Installing systemd service (auto-start + crash recovery)...')
 
@@ -206,9 +176,9 @@ if (!existsSync(systemdSrc)) {
   }
 }
 
-console.log('\n✅ Longbridge broker patch applied successfully!\n')
+console.log('\n✅ Alice-Longbridge patch applied successfully!\n')
 console.log('Next steps:')
-console.log('  1. pnpm install                  # install all dependencies (including longport-mcp)')
-console.log('  2. pnpm build                    # build everything (broker + MCP server)')
+console.log('  1. pnpm install                  # install all dependencies')
+console.log('  2. pnpm build                    # build everything')
 console.log('  3. sudo systemctl restart openalice   # reload with new build')
 console.log('\n🎉 All done!')
