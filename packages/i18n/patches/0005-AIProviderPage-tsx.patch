@@ -1,0 +1,507 @@
+diff --git a/ui/src/pages/AIProviderPage.tsx b/ui/src/pages/AIProviderPage.tsx
+index 13a474e..a6e60e6 100644
+--- a/ui/src/pages/AIProviderPage.tsx
++++ b/ui/src/pages/AIProviderPage.tsx
+@@ -5,10 +5,11 @@ import { ConfigSection, Field, inputClass } from '../components/form'
+ import { useAutoSave, type SaveStatus } from '../hooks/useAutoSave'
+ import { PageHeader } from '../components/PageHeader'
+ import { PageLoading } from '../components/StateViews'
++import { useTranslation } from '../i18n'
+ 
+-const LOGIN_METHODS: { value: LoginMethod; label: string; subtitle: string; hint: string }[] = [
+-  { value: 'claudeai', label: 'Claude Pro/Max', subtitle: 'Use your Claude subscription', hint: 'Requires local Claude Code login (run claude login in terminal). No API key needed.' },
+-  { value: 'api-key', label: 'API Key', subtitle: 'Pay per token', hint: 'Enter your Anthropic API key below. Billed per token to your API account.' },
++const LOGIN_METHODS: { value: LoginMethod; labelKey: string; subtitleKey: string; hintKey: string }[] = [
++  { value: 'claudeai', labelKey: 'claudePro', subtitleKey: 'claudeProSubtitle', hintKey: 'claudeProHint' },
++  { value: 'api-key', labelKey: 'apiKey', subtitleKey: 'claudeProSubtitle', hintKey: 'apiKeyHint' },
+ ]
+ 
+ const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
+@@ -27,12 +28,16 @@ const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
+     { label: 'Gemini 3 Flash', value: 'gemini-3-flash-preview' },
+     { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
+   ],
++  minimax: [
++    { label: 'MiniMax-M2.7', value: 'MiniMax-M2.7' },
++  ],
+ }
+ 
+ const PROVIDERS = [
+   { value: 'anthropic', label: 'Anthropic' },
+   { value: 'openai', label: 'OpenAI' },
+   { value: 'google', label: 'Google' },
++  { value: 'minimax', label: 'Minimax' },
+   { value: 'custom', label: 'Custom' },
+ ]
+ 
+@@ -92,6 +97,7 @@ function BackendCard({ selected, onClick, icon, title, description }: {
+ }
+ 
+ export function AIProviderPage() {
++  const { t } = useTranslation()
+   const [config, setConfig] = useState<AppConfig | null>(null)
+ 
+   useEffect(() => {
+@@ -117,55 +123,55 @@ export function AIProviderPage() {
+ 
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+-      <PageHeader title="AI Provider" description="Configure the AI backend, model, and API keys." />
++      <PageHeader title={t.aiProvider.title} description={t.aiProvider.titleDesc} />
+ 
+       {config ? (
+       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
+           <div className="max-w-[880px] mx-auto">
+             {/* Backend */}
+-            <ConfigSection title="Backend" description="Changes take effect immediately.">
++            <ConfigSection title={t.aiProvider.backend} description={t.aiProvider.backendDesc}>
+               <div className="grid grid-cols-3 gap-3">
+                 <BackendCard
+                   selected={uiBackend === 'agent-sdk'}
+                   onClick={() => handleBackendSwitch('agent-sdk')}
+                   icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a4 4 0 0 1 4 4v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V6a4 4 0 0 1 4-4z" /><path d="M8 8v2a4 4 0 0 0 8 0V8" /><path d="M12 14v4" /><path d="M8 22h8" /><circle cx="9" cy="5.5" r="0.5" fill="currentColor" stroke="none" /><circle cx="15" cy="5.5" r="0.5" fill="currentColor" stroke="none" /></svg>}
+                   title="Claude"
+-                  description="Claude Code login or Anthropic API key"
++                  description={t.aiProvider.claudeDesc}
+                 />
+                 <BackendCard
+                   selected={uiBackend === 'openai'}
+                   onClick={() => handleBackendSwitch('openai')}
+                   icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>}
+                   title="OpenAI"
+-                  description="GPT models via OpenAI API"
++                  description={t.aiProvider.openaiDesc}
+                 />
+                 <BackendCard
+                   selected={uiBackend === 'vercel-ai-sdk'}
+                   onClick={() => handleBackendSwitch('vercel-ai-sdk')}
+                   icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+                   title="Vercel AI SDK"
+-                  description="Multi-provider, custom endpoints"
++                  description={t.aiProvider.vercelAiSdkDesc}
+                 />
+               </div>
+             </ConfigSection>
+ 
+             {/* Auth mode (only for Agent SDK) */}
+             {uiBackend === 'agent-sdk' && (
+-              <ConfigSection title="Authentication" description="Choose how Alice connects to Claude.">
++              <ConfigSection title={t.aiProvider.authentication} description={t.aiProvider.authDesc}>
+                 <AgentSdkAuthForm aiProvider={config.aiProvider} onUpdate={(patch) => setConfig((c) => c ? { ...c, aiProvider: { ...c.aiProvider, ...patch } } : c)} />
+               </ConfigSection>
+             )}
+ 
+             {/* OpenAI simplified form */}
+             {uiBackend === 'openai' && (
+-              <ConfigSection title="Model" description="Select a model and enter your OpenAI API key.">
++              <ConfigSection title={t.aiProvider.model} description={t.aiProvider.modelDesc}>
+                 <OpenAIForm aiProvider={config.aiProvider} />
+               </ConfigSection>
+             )}
+ 
+             {/* Full model form (only for Vercel AI SDK) */}
+             {uiBackend === 'vercel-ai-sdk' && (
+-              <ConfigSection title="Model" description="Provider, model, and API keys. Changes take effect on the next request.">
++              <ConfigSection title={t.aiProvider.model} description={t.aiProvider.modelFullDesc}>
+                 <ModelForm aiProvider={config.aiProvider} />
+               </ConfigSection>
+             )}
+@@ -181,6 +187,7 @@ export function AIProviderPage() {
+ // ==================== OpenAI Form (simplified) ====================
+ 
+ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
++  const { t } = useTranslation()
+   const presets = PROVIDER_MODELS.openai
+   const initModel = aiProvider.provider === 'openai' && aiProvider.model ? aiProvider.model : presets[0].value
+   const isPreset = presets.some((p) => p.value === initModel)
+@@ -243,7 +250,7 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+ 
+   return (
+     <>
+-      <Field label="Model">
++      <Field label={t.aiProvider.modelId}>
+         <select
+           className={inputClass}
+           value={model || '__custom__'}
+@@ -252,12 +259,12 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+           {presets.map((m) => (
+             <option key={m.value} value={m.value}>{m.label}</option>
+           ))}
+-          <option value="__custom__">Custom...</option>
++          <option value="__custom__">{t.aiProvider.customModelId}</option>
+         </select>
+       </Field>
+ 
+       {!model && (
+-        <Field label="Custom Model ID">
++        <Field label={t.aiProvider.customModelId}>
+           <input
+             className={inputClass}
+             value={customModel}
+@@ -267,17 +274,17 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+         </Field>
+       )}
+ 
+-      <Field label="API Key">
++      <Field label={t.aiProvider.apiKey}>
+         <div className="relative">
+           <input
+             className={inputClass}
+             type="password"
+             value={apiKey}
+             onChange={(e) => setApiKey(e.target.value)}
+-            placeholder={hasKey ? '(configured)' : 'sk-...'}
++            placeholder={hasKey ? t.aiProvider.configured : 'sk-...'}
+           />
+           {hasKey && (
+-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">active</span>
++            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">{t.aiProvider.active}</span>
+           )}
+         </div>
+         <div className="flex items-center gap-3 mt-2">
+@@ -286,7 +293,7 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+             disabled={!apiKey || keySaveStatus === 'saving'}
+             className="btn-primary"
+           >
+-            Save Key
++            {t.aiProvider.saveKey}
+           </button>
+           <SaveIndicator status={keySaveStatus} onRetry={handleSaveKey} />
+         </div>
+@@ -309,6 +316,7 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+ // ==================== Model Form (full Vercel AI SDK) ====================
+ 
+ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
++  const { t } = useTranslation()
+   // Detect whether saved config should render as "Custom" in the UI
+   const initCustom = detectCustomMode(aiProvider.provider || 'anthropic', aiProvider.model || '')
+   const [uiProvider, setUiProvider] = useState(initCustom ? 'custom' : (aiProvider.provider || 'anthropic'))
+@@ -317,7 +325,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+   const [customModel, setCustomModel] = useState(initCustom ? (aiProvider.model || '') : '')
+   const [baseUrl, setBaseUrl] = useState(aiProvider.baseUrl || '')
+   const [showKeys, setShowKeys] = useState(false)
+-  const [keys, setKeys] = useState({ anthropic: '', openai: '', google: '' })
++  const [keys, setKeys] = useState({ anthropic: '', openai: '', google: '', minimax: '' })
+   const [keySaveStatus, setKeySaveStatus] = useState<SaveStatus>('idle')
+   const keySavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+ 
+@@ -354,6 +362,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+     anthropic: !!aiProvider.apiKeys?.anthropic,
+     openai: !!aiProvider.apiKeys?.openai,
+     google: !!aiProvider.apiKeys?.google,
++    minimax: !!aiProvider.apiKeys?.minimax,
+   }), [aiProvider.apiKeys])
+ 
+   const [liveKeyStatus, setLiveKeyStatus] = useState(keyStatus)
+@@ -364,14 +373,20 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+     if (keySavedTimer.current) clearTimeout(keySavedTimer.current)
+   }, [])
+ 
++  // Default base URLs per provider
++  const PROVIDER_BASE_URLS: Record<string, string> = {
++    minimax: 'https://api.minimaxi.com/anthropic/v1/messages',
++  }
++
+   const handleProviderChange = (newUiProvider: string) => {
+     setUiProvider(newUiProvider)
+-    setBaseUrl('')
+     if (newUiProvider === 'custom') {
++      setBaseUrl('')
+       setSdkProvider('openai')
+       setModel('')
+       setCustomModel('')
+     } else {
++      setBaseUrl(PROVIDER_BASE_URLS[newUiProvider] || '')
+       setSdkProvider(newUiProvider)
+       const defaults = PROVIDER_MODELS[newUiProvider]
+       if (defaults?.length) {
+@@ -401,13 +416,15 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+       if (keys.anthropic) updatedKeys.anthropic = keys.anthropic
+       if (keys.openai) updatedKeys.openai = keys.openai
+       if (keys.google) updatedKeys.google = keys.google
++      if (keys.minimax) updatedKeys.minimax = keys.minimax
+       await api.config.updateSection('aiProvider', { ...aiProvider, apiKeys: updatedKeys })
+       setLiveKeyStatus({
+         anthropic: !!updatedKeys.anthropic,
+         openai: !!updatedKeys.openai,
+         google: !!updatedKeys.google,
++        minimax: !!updatedKeys.minimax,
+       })
+-      setKeys({ anthropic: '', openai: '', google: '' })
++      setKeys({ anthropic: '', openai: '', google: '', minimax: '' })
+       setKeySaveStatus('saved')
+       if (keySavedTimer.current) clearTimeout(keySavedTimer.current)
+       keySavedTimer.current = setTimeout(() => setKeySaveStatus('idle'), 2000)
+@@ -418,7 +435,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+ 
+   return (
+     <>
+-      <Field label="Provider">
++      <Field label={t.aiProvider.provider}>
+         <div className="flex border border-border rounded-lg overflow-hidden">
+           {PROVIDERS.map((p, i) => (
+             <button
+@@ -438,7 +455,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+ 
+       {/* Custom mode: API format selector */}
+       {isCustomMode && (
+-        <Field label="API Format">
++        <Field label={t.aiProvider.apiFormat}>
+           <select
+             className={inputClass}
+             value={sdkProvider}
+@@ -449,14 +466,14 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+             ))}
+           </select>
+           <p className="text-[11px] text-text-muted mt-1">
+-            Which API protocol does your endpoint speak?
++            {t.aiProvider.apiFormatDesc}
+           </p>
+         </Field>
+       )}
+ 
+       {/* Standard mode: preset model dropdown */}
+       {!isCustomMode && (
+-        <Field label="Model">
++        <Field label={t.aiProvider.modelId}>
+           <select
+             className={inputClass}
+             value={isCustomModelInStandard || model === '' ? '__custom__' : model}
+@@ -465,14 +482,14 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+             {presets.map((m) => (
+               <option key={m.value} value={m.value}>{m.label}</option>
+             ))}
+-            <option value="__custom__">Custom...</option>
++            <option value="__custom__">{t.aiProvider.customModelId}</option>
+           </select>
+         </Field>
+       )}
+ 
+       {/* Free-text model ID — always shown in custom mode, or when "Custom..." selected in standard mode */}
+       {(isCustomMode || isCustomModelInStandard || (!isCustomMode && model === '')) && (
+-        <Field label={isCustomMode ? 'Model ID' : 'Custom Model ID'}>
++        <Field label={isCustomMode ? t.aiProvider.modelId : t.aiProvider.customModelId}>
+           <input
+             className={inputClass}
+             value={customModel || model}
+@@ -482,77 +499,116 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+         </Field>
+       )}
+ 
+-      <Field label="Base URL">
+-        <input
+-          className={inputClass}
+-          value={baseUrl}
+-          onChange={(e) => setBaseUrl(e.target.value)}
+-          placeholder={isCustomMode ? 'https://your-relay.example.com/v1' : 'Leave empty for official API'}
+-        />
+-        <p className="text-[11px] text-text-muted mt-1">
+-          {isCustomMode ? 'Your relay or proxy endpoint.' : 'Custom endpoint for proxy or relay.'}
+-        </p>
+-      </Field>
++      {uiProvider !== 'minimax' && (
++        <Field label={t.aiProvider.baseUrl}>
++          <input
++            className={inputClass}
++            value={baseUrl}
++            onChange={(e) => setBaseUrl(e.target.value)}
++            placeholder={isCustomMode ? t.aiProvider.relayBaseUrlPlaceholder : t.aiProvider.baseUrlPlaceholder}
++          />
++          <p className="text-[11px] text-text-muted mt-1">
++            {isCustomMode ? t.aiProvider.relayBaseUrlDesc : t.aiProvider.baseUrlDesc}
++          </p>
++        </Field>
++      )}
+ 
+       <SaveIndicator status={modelStatus} onRetry={modelRetry} />
+ 
+       {/* API Keys */}
+       <div className="mt-5 border-t border-border pt-4">
+-        <button
+-          onClick={() => setShowKeys(!showKeys)}
+-          className="flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text transition-colors"
+-        >
+-          <svg
+-            width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+-            className={`transition-transform ${showKeys ? 'rotate-90' : ''}`}
+-          >
+-            <polyline points="9 18 15 12 9 6" />
+-          </svg>
+-          API Keys
+-          <span className="text-[11px] text-text-muted/60 ml-1">
+-            ({Object.values(liveKeyStatus).filter(Boolean).length}/{Object.keys(liveKeyStatus).length} configured)
+-          </span>
+-        </button>
+-
+-        {showKeys && (
++        {uiProvider === 'minimax' ? (
++          // Minimax: only show one API Key field (ANTHROPIC_API_KEY)
+           <div className="mt-3 space-y-3">
+             <p className="text-[11px] text-text-muted">
+-              {isCustomMode
+-                ? 'Enter the API key for your relay. It will be sent under the matching provider header.'
+-                : 'Enter API keys below. Leave empty to keep existing value.'}
++              {t.aiProvider.enterApiKeysBelow}
+             </p>
+-            {(isCustomMode
+-              ? SDK_FORMATS.filter((f) => f.value === sdkProvider)
+-              : PROVIDERS.filter((p) => p.value !== 'custom')
+-            ).map((p) => (
+-              <Field key={p.value} label={isCustomMode ? `API Key (${p.label})` : `${p.label} API Key`}>
+-                <div className="relative">
+-                  <input
+-                    className={inputClass}
+-                    type="password"
+-                    value={keys[p.value as keyof typeof keys] ?? ''}
+-                    onChange={(e) => setKeys((k) => ({ ...k, [p.value]: e.target.value }))}
+-                    placeholder={liveKeyStatus[p.value as keyof typeof liveKeyStatus] ? '(configured)' : 'Not configured'}
+-                  />
+-                  {liveKeyStatus[p.value as keyof typeof liveKeyStatus] && (
+-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">
+-                      active
+-                    </span>
+-                  )}
+-                </div>
+-              </Field>
+-            ))}
++            <Field label={t.aiProvider.apiKey + ' (Minimax)'}>
++              <div className="relative">
++                <input
++                  className={inputClass}
++                  type="password"
++                  value={keys.anthropic ?? ''}
++                  onChange={(e) => setKeys((k) => ({ ...k, anthropic: e.target.value }))}
++                  placeholder={liveKeyStatus.anthropic ? t.aiProvider.configured : 'sk-...'}
++                />
++                {liveKeyStatus.anthropic && (
++                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">
++                    {t.aiProvider.active}
++                  </span>
++                )}
++              </div>
++            </Field>
+             <div className="flex items-center gap-3">
+               <button
+                 onClick={handleSaveKeys}
+                 disabled={keySaveStatus === 'saving'}
+                 className="btn-primary"
+               >
+-                Save Keys
++                {t.aiProvider.saveKey}
+               </button>
+               <SaveIndicator status={keySaveStatus} onRetry={handleSaveKeys} />
+             </div>
+           </div>
++        ) : (
++          <>
++            <button
++              onClick={() => setShowKeys(!showKeys)}
++              className="flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text transition-colors"
++            >
++              <svg
++                width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
++                className={`transition-transform ${showKeys ? 'rotate-90' : ''}`}
++              >
++                <polyline points="9 18 15 12 9 6" />
++              </svg>
++              API Keys
++              <span className="text-[11px] text-text-muted/60 ml-1">
++                ({Object.values(liveKeyStatus).filter(Boolean).length}/{Object.keys(liveKeyStatus).length} {t.aiProvider.configured})
++              </span>
++            </button>
++
++            {showKeys && (
++              <div className="mt-3 space-y-3">
++                <p className="text-[11px] text-text-muted">
++                  {isCustomMode
++                    ? t.aiProvider.enterApiKeyForRelay
++                    : t.aiProvider.enterApiKeysBelow}
++                </p>
++                {(isCustomMode
++                  ? SDK_FORMATS.filter((f) => f.value === sdkProvider)
++                  : PROVIDERS.filter((p) => p.value !== 'custom')
++                ).map((p) => (
++                  <Field key={p.value} label={`${t.aiProvider.apiKey} (${p.label})`}>
++                    <div className="relative">
++                      <input
++                        className={inputClass}
++                        type="password"
++                        value={keys[p.value as keyof typeof keys] ?? ''}
++                        onChange={(e) => setKeys((k) => ({ ...k, [p.value]: e.target.value }))}
++                        placeholder={liveKeyStatus[p.value as keyof typeof liveKeyStatus] ? t.aiProvider.configured : t.aiProvider.notConfigured}
++                      />
++                      {liveKeyStatus[p.value as keyof typeof liveKeyStatus] && (
++                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">
++                          {t.aiProvider.active}
++                        </span>
++                      )}
++                    </div>
++                  </Field>
++                ))}
++                <div className="flex items-center gap-3">
++                  <button
++                    onClick={handleSaveKeys}
++                    disabled={keySaveStatus === 'saving'}
++                    className="btn-primary"
++                  >
++                    {t.aiProvider.saveKeys}
++                  </button>
++                  <SaveIndicator status={keySaveStatus} onRetry={handleSaveKeys} />
++                </div>
++              </div>
++            )}
++          </>
+         )}
+       </div>
+     </>
+@@ -562,6 +618,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+ // ==================== Agent SDK Auth Form ====================
+ 
+ function AgentSdkAuthForm({ aiProvider, onUpdate }: { aiProvider: AIProviderConfig; onUpdate: (patch: Partial<AIProviderConfig>) => void }) {
++  const { t } = useTranslation()
+   const [loginMethod, setLoginMethod] = useState<LoginMethod>(aiProvider.loginMethod ?? 'api-key')
+   const [apiKey, setApiKey] = useState('')
+   const [keySaveStatus, setKeySaveStatus] = useState<SaveStatus>('idle')
+@@ -602,27 +659,27 @@ function AgentSdkAuthForm({ aiProvider, onUpdate }: { aiProvider: AIProviderConf
+             icon={m.value === 'claudeai'
+               ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" /></svg>
+               : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
+-            title={m.label}
+-            description={m.subtitle}
++            title={t.aiProvider.loginMethod[m.labelKey as keyof typeof t.aiProvider.loginMethod] as string}
++            description={t.aiProvider.loginMethod[m.subtitleKey as keyof typeof t.aiProvider.loginMethod] as string}
+           />
+         ))}
+       </div>
+       <p className="text-[11px] text-text-muted mt-2">
+-        {LOGIN_METHODS.find((m) => m.value === loginMethod)?.hint}
++        {t.aiProvider.loginMethod[LOGIN_METHODS.find((m) => m.value === loginMethod)?.hintKey as keyof typeof t.aiProvider.loginMethod] as string}
+       </p>
+ 
+       {loginMethod === 'api-key' && (
+-        <Field label="Anthropic API Key">
++        <Field label={t.aiProvider.apiKey + ' (Anthropic)'}>
+           <div className="relative">
+             <input
+               className={inputClass}
+               type="password"
+               value={apiKey}
+               onChange={(e) => setApiKey(e.target.value)}
+-              placeholder={aiProvider.apiKeys?.anthropic ? '(configured)' : 'sk-ant-...'}
++              placeholder={aiProvider.apiKeys?.anthropic ? t.aiProvider.configured : 'sk-ant-...'}
+             />
+             {aiProvider.apiKeys?.anthropic && (
+-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">active</span>
++              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">{t.aiProvider.active}</span>
+             )}
+           </div>
+           <div className="flex items-center gap-3 mt-2">
+@@ -631,7 +688,7 @@ function AgentSdkAuthForm({ aiProvider, onUpdate }: { aiProvider: AIProviderConf
+               disabled={!apiKey || keySaveStatus === 'saving'}
+               className="btn-primary"
+             >
+-              Save Key
++              {t.aiProvider.saveKey}
+             </button>
+             <SaveIndicator status={keySaveStatus} onRetry={handleSaveKey} />
+           </div>
