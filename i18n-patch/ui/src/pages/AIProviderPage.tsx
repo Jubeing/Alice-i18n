@@ -28,16 +28,12 @@ const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
     { label: 'Gemini 3 Flash', value: 'gemini-3-flash-preview' },
     { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
   ],
-  minimax: [
-    { label: 'MiniMax-M2.7', value: 'MiniMax-M2.7' },
-  ],
 }
 
 const PROVIDERS = [
   { value: 'anthropic', label: 'Anthropic' },
   { value: 'openai', label: 'OpenAI' },
   { value: 'google', label: 'Google' },
-  { value: 'minimax', label: 'Minimax' },
   { value: 'custom', label: 'Custom' },
 ]
 
@@ -325,7 +321,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
   const [customModel, setCustomModel] = useState(initCustom ? (aiProvider.model || '') : '')
   const [baseUrl, setBaseUrl] = useState(aiProvider.baseUrl || '')
   const [showKeys, setShowKeys] = useState(false)
-  const [keys, setKeys] = useState({ anthropic: '', openai: '', google: '', minimax: '' })
+  const [keys, setKeys] = useState({ anthropic: '', openai: '', google: '' })
   const [keySaveStatus, setKeySaveStatus] = useState<SaveStatus>('idle')
   const keySavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -362,7 +358,6 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
     anthropic: !!aiProvider.apiKeys?.anthropic,
     openai: !!aiProvider.apiKeys?.openai,
     google: !!aiProvider.apiKeys?.google,
-    minimax: !!aiProvider.apiKeys?.minimax,
   }), [aiProvider.apiKeys])
 
   const [liveKeyStatus, setLiveKeyStatus] = useState(keyStatus)
@@ -375,7 +370,6 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
 
   // Default base URLs per provider
   const PROVIDER_BASE_URLS: Record<string, string> = {
-    minimax: 'https://api.minimaxi.com/anthropic/v1/messages',
   }
 
   const handleProviderChange = (newUiProvider: string) => {
@@ -416,15 +410,13 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
       if (keys.anthropic) updatedKeys.anthropic = keys.anthropic
       if (keys.openai) updatedKeys.openai = keys.openai
       if (keys.google) updatedKeys.google = keys.google
-      if (keys.minimax) updatedKeys.minimax = keys.minimax
       await api.config.updateSection('aiProvider', { ...aiProvider, apiKeys: updatedKeys })
       setLiveKeyStatus({
         anthropic: !!updatedKeys.anthropic,
         openai: !!updatedKeys.openai,
         google: !!updatedKeys.google,
-        minimax: !!updatedKeys.minimax,
       })
-      setKeys({ anthropic: '', openai: '', google: '', minimax: '' })
+      setKeys({ anthropic: '', openai: '', google: '' })
       setKeySaveStatus('saved')
       if (keySavedTimer.current) clearTimeout(keySavedTimer.current)
       keySavedTimer.current = setTimeout(() => setKeySaveStatus('idle'), 2000)
@@ -499,116 +491,77 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
         </Field>
       )}
 
-      {uiProvider !== 'minimax' && (
-        <Field label={t.aiProvider.baseUrl}>
-          <input
-            className={inputClass}
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-            placeholder={isCustomMode ? t.aiProvider.relayBaseUrlPlaceholder : t.aiProvider.baseUrlPlaceholder}
-          />
-          <p className="text-[11px] text-text-muted mt-1">
-            {isCustomMode ? t.aiProvider.relayBaseUrlDesc : t.aiProvider.baseUrlDesc}
-          </p>
-        </Field>
-      )}
+      <Field label={t.aiProvider.baseUrl}>
+        <input
+          className={inputClass}
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          placeholder={isCustomMode ? t.aiProvider.relayBaseUrlPlaceholder : t.aiProvider.baseUrlPlaceholder}
+        />
+        <p className="text-[11px] text-text-muted mt-1">
+          {isCustomMode ? t.aiProvider.relayBaseUrlDesc : t.aiProvider.baseUrlDesc}
+        </p>
+      </Field>
 
       <SaveIndicator status={modelStatus} onRetry={modelRetry} />
 
       {/* API Keys */}
       <div className="mt-5 border-t border-border pt-4">
-        {uiProvider === 'minimax' ? (
-          // Minimax: only show one API Key field (ANTHROPIC_API_KEY)
+        <button
+          onClick={() => setShowKeys(!showKeys)}
+          className="flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text transition-colors"
+        >
+          <svg
+            width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            className={`transition-transform ${showKeys ? 'rotate-90' : ''}`}
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          API Keys
+          <span className="text-[11px] text-text-muted/60 ml-1">
+            ({Object.values(liveKeyStatus).filter(Boolean).length}/{Object.keys(liveKeyStatus).length} {t.aiProvider.configured})
+          </span>
+        </button>
+
+        {showKeys && (
           <div className="mt-3 space-y-3">
             <p className="text-[11px] text-text-muted">
-              {t.aiProvider.enterApiKeysBelow}
+              {isCustomMode
+                ? t.aiProvider.enterApiKeyForRelay
+                : t.aiProvider.enterApiKeysBelow}
             </p>
-            <Field label={t.aiProvider.apiKey + ' (Minimax)'}>
-              <div className="relative">
-                <input
-                  className={inputClass}
-                  type="password"
-                  value={keys.anthropic ?? ''}
-                  onChange={(e) => setKeys((k) => ({ ...k, anthropic: e.target.value }))}
-                  placeholder={liveKeyStatus.anthropic ? t.aiProvider.configured : 'sk-...'}
-                />
-                {liveKeyStatus.anthropic && (
-                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">
-                    {t.aiProvider.active}
-                  </span>
-                )}
-              </div>
-            </Field>
+            {(isCustomMode
+              ? SDK_FORMATS.filter((f) => f.value === sdkProvider)
+              : PROVIDERS.filter((p) => p.value !== 'custom')
+            ).map((p) => (
+              <Field key={p.value} label={`${t.aiProvider.apiKey} (${p.label})`}>
+                <div className="relative">
+                  <input
+                    className={inputClass}
+                    type="password"
+                    value={keys[p.value as keyof typeof keys] ?? ''}
+                    onChange={(e) => setKeys((k) => ({ ...k, [p.value]: e.target.value }))}
+                    placeholder={liveKeyStatus[p.value as keyof typeof liveKeyStatus] ? t.aiProvider.configured : t.aiProvider.notConfigured}
+                  />
+                  {liveKeyStatus[p.value as keyof typeof liveKeyStatus] && (
+                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">
+                      {t.aiProvider.active}
+                    </span>
+                  )}
+                </div>
+              </Field>
+            ))}
             <div className="flex items-center gap-3">
               <button
                 onClick={handleSaveKeys}
                 disabled={keySaveStatus === 'saving'}
                 className="btn-primary"
               >
-                {t.aiProvider.saveKey}
+                {t.aiProvider.saveKeys}
               </button>
               <SaveIndicator status={keySaveStatus} onRetry={handleSaveKeys} />
             </div>
           </div>
-        ) : (
-          <>
-            <button
-              onClick={() => setShowKeys(!showKeys)}
-              className="flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text transition-colors"
-            >
-              <svg
-                width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                className={`transition-transform ${showKeys ? 'rotate-90' : ''}`}
-              >
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-              API Keys
-              <span className="text-[11px] text-text-muted/60 ml-1">
-                ({Object.values(liveKeyStatus).filter(Boolean).length}/{Object.keys(liveKeyStatus).length} {t.aiProvider.configured})
-              </span>
-            </button>
-
-            {showKeys && (
-              <div className="mt-3 space-y-3">
-                <p className="text-[11px] text-text-muted">
-                  {isCustomMode
-                    ? t.aiProvider.enterApiKeyForRelay
-                    : t.aiProvider.enterApiKeysBelow}
-                </p>
-                {(isCustomMode
-                  ? SDK_FORMATS.filter((f) => f.value === sdkProvider)
-                  : PROVIDERS.filter((p) => p.value !== 'custom')
-                ).map((p) => (
-                  <Field key={p.value} label={`${t.aiProvider.apiKey} (${p.label})`}>
-                    <div className="relative">
-                      <input
-                        className={inputClass}
-                        type="password"
-                        value={keys[p.value as keyof typeof keys] ?? ''}
-                        onChange={(e) => setKeys((k) => ({ ...k, [p.value]: e.target.value }))}
-                        placeholder={liveKeyStatus[p.value as keyof typeof liveKeyStatus] ? t.aiProvider.configured : t.aiProvider.notConfigured}
-                      />
-                      {liveKeyStatus[p.value as keyof typeof liveKeyStatus] && (
-                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">
-                          {t.aiProvider.active}
-                        </span>
-                      )}
-                    </div>
-                  </Field>
-                ))}
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleSaveKeys}
-                    disabled={keySaveStatus === 'saving'}
-                    className="btn-primary"
-                  >
-                    {t.aiProvider.saveKeys}
-                  </button>
-                  <SaveIndicator status={keySaveStatus} onRetry={handleSaveKeys} />
-                </div>
-              </div>
-            )}
-          </>
         )}
       </div>
     </>
