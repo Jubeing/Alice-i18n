@@ -1,0 +1,3514 @@
+diff --git a/ui/src/components/SDKSelector.tsx b/ui/src/components/SDKSelector.tsx
+index 9f67f4a..0037d9d 100644
+--- a/ui/src/components/SDKSelector.tsx
++++ b/ui/src/components/SDKSelector.tsx
+@@ -1,7 +1,13 @@
++import { useTranslation } from '../i18n'
++
+ export interface SDKOption {
+   id: string
+   name: string
+   description: string
++  nameKey?: string       // i18n key for name (overrides name if provided)
++  descriptionKey?: string // i18n key for description (overrides description if provided)
++  alwaysOnKey?: string   // i18n key for "always on" badge text
++  comingSoonKey?: string // i18n key for "coming soon" badge text
+   badge: string          // Short text shown in the avatar circle (e.g. "CC", "AL")
+   badgeColor: string     // Tailwind text color class for the badge
+   comingSoon?: boolean
+@@ -29,6 +35,7 @@ function isMulti(props: SDKSelectorProps): props is SDKSelectorMultiProps {
+ }
+ 
+ export function SDKSelector(props: SDKSelectorProps) {
++  const { t } = useTranslation()
+   const { options } = props
+   const multi = isMulti(props)
+ 
+@@ -71,14 +78,14 @@ export function SDKSelector(props: SDKSelectorProps) {
+             {/* Coming Soon badge */}
+             {isDisabled && (
+               <span className="absolute top-2.5 right-2.5 text-[10px] font-medium text-text-muted/60 bg-bg-tertiary px-1.5 py-0.5 rounded">
+-                Coming Soon
++                {opt.comingSoonKey ? (t.connectors as unknown as Record<string, string>)[opt.comingSoonKey] ?? 'Coming Soon' : 'Coming Soon'}
+               </span>
+             )}
+ 
+             {/* Locked badge (always active) */}
+             {isLocked && !isDisabled && (
+               <span className="absolute top-2.5 right-2.5 text-[10px] font-medium text-accent/70 bg-accent/10 px-1.5 py-0.5 rounded">
+-                Always On
++                {opt.alwaysOnKey ? (t.connectors as unknown as Record<string, string>)[opt.alwaysOnKey] ?? 'Always On' : 'Always On'}
+               </span>
+             )}
+ 
+@@ -105,10 +112,10 @@ export function SDKSelector(props: SDKSelectorProps) {
+ 
+               <div className="min-w-0 pr-5">
+                 <p className={`text-[13px] font-medium ${isSelected ? 'text-text' : isDisabled ? 'text-text-muted' : 'text-text'}`}>
+-                  {opt.name}
++                  {opt.nameKey ? (t.connectors as unknown as Record<string, string>)[opt.nameKey] ?? opt.name : opt.name}
+                 </p>
+                 <p className="text-[11px] text-text-muted/70 mt-0.5 leading-relaxed">
+-                  {opt.description}
++                  {opt.descriptionKey ? (t.connectors as unknown as Record<string, string>)[opt.descriptionKey] ?? opt.description : opt.description}
+                 </p>
+               </div>
+             </div>
+@@ -235,6 +242,9 @@ export const CONNECTOR_OPTIONS: SDKOption[] = [
+     id: 'web',
+     name: 'Web UI',
+     description: 'Browser-based chat and configuration interface.',
++    nameKey: 'webUi',
++    descriptionKey: 'webUiDesc',
++    alwaysOnKey: 'alwaysOn',
+     badge: 'WB',
+     badgeColor: 'text-accent',
+     locked: true,
+@@ -243,6 +253,9 @@ export const CONNECTOR_OPTIONS: SDKOption[] = [
+     id: 'mcp',
+     name: 'MCP Server',
+     description: 'Tool bridge for Claude Code provider and external AI agents.',
++    nameKey: 'mcpServer',
++    descriptionKey: 'mcpServerDesc',
++    alwaysOnKey: 'alwaysOn',
+     badge: 'MC',
+     badgeColor: 'text-purple',
+     locked: true,
+@@ -251,6 +264,9 @@ export const CONNECTOR_OPTIONS: SDKOption[] = [
+     id: 'mcpAsk',
+     name: 'MCP Ask',
+     description: 'Multi-turn conversation endpoint for external agents.',
++    nameKey: 'mcpAsk',
++    descriptionKey: 'mcpAskDesc',
++    alwaysOnKey: 'alwaysOn',
+     badge: 'MA',
+     badgeColor: 'text-blue',
+   },
+@@ -258,6 +274,9 @@ export const CONNECTOR_OPTIONS: SDKOption[] = [
+     id: 'telegram',
+     name: 'Telegram',
+     description: 'Mobile notifications and two-way chat via Telegram bot.',
++    nameKey: 'telegram',
++    descriptionKey: 'telegramDesc',
++    alwaysOnKey: 'alwaysOn',
+     badge: 'TG',
+     badgeColor: 'text-cyan',
+   },
+diff --git a/ui/src/main.tsx b/ui/src/main.tsx
+index 9c316ca..e00dfb6 100644
+--- a/ui/src/main.tsx
++++ b/ui/src/main.tsx
+@@ -3,14 +3,17 @@ import { createRoot } from 'react-dom/client'
+ import { BrowserRouter } from 'react-router-dom'
+ import { App } from './App'
+ import { ToastProvider } from './components/Toast'
++import { I18nProvider } from './i18n'
+ import './index.css'
+ 
+ createRoot(document.getElementById('root')!).render(
+   <StrictMode>
+     <BrowserRouter>
+-      <ToastProvider>
+-        <App />
+-      </ToastProvider>
++      <I18nProvider>
++        <ToastProvider>
++          <App />
++        </ToastProvider>
++      </I18nProvider>
+     </BrowserRouter>
+   </StrictMode>,
+ )
+diff --git a/ui/src/pages/AIProviderPage.tsx b/ui/src/pages/AIProviderPage.tsx
+index 13a474e..a6e60e6 100644
+--- a/ui/src/pages/AIProviderPage.tsx
++++ b/ui/src/pages/AIProviderPage.tsx
+@@ -5,10 +5,11 @@ import { ConfigSection, Field, inputClass } from '../components/form'
+ import { useAutoSave, type SaveStatus } from '../hooks/useAutoSave'
+ import { PageHeader } from '../components/PageHeader'
+ import { PageLoading } from '../components/StateViews'
++import { useTranslation } from '../i18n'
+ 
+-const LOGIN_METHODS: { value: LoginMethod; label: string; subtitle: string; hint: string }[] = [
+-  { value: 'claudeai', label: 'Claude Pro/Max', subtitle: 'Use your Claude subscription', hint: 'Requires local Claude Code login (run claude login in terminal). No API key needed.' },
+-  { value: 'api-key', label: 'API Key', subtitle: 'Pay per token', hint: 'Enter your Anthropic API key below. Billed per token to your API account.' },
++const LOGIN_METHODS: { value: LoginMethod; labelKey: string; subtitleKey: string; hintKey: string }[] = [
++  { value: 'claudeai', labelKey: 'claudePro', subtitleKey: 'claudeProSubtitle', hintKey: 'claudeProHint' },
++  { value: 'api-key', labelKey: 'apiKey', subtitleKey: 'claudeProSubtitle', hintKey: 'apiKeyHint' },
+ ]
+ 
+ const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
+@@ -27,12 +28,16 @@ const PROVIDER_MODELS: Record<string, { label: string; value: string }[]> = {
+     { label: 'Gemini 3 Flash', value: 'gemini-3-flash-preview' },
+     { label: 'Gemini 2.5 Pro', value: 'gemini-2.5-pro' },
+   ],
++  minimax: [
++    { label: 'MiniMax-M2.7', value: 'MiniMax-M2.7' },
++  ],
+ }
+ 
+ const PROVIDERS = [
+   { value: 'anthropic', label: 'Anthropic' },
+   { value: 'openai', label: 'OpenAI' },
+   { value: 'google', label: 'Google' },
++  { value: 'minimax', label: 'Minimax' },
+   { value: 'custom', label: 'Custom' },
+ ]
+ 
+@@ -92,6 +97,7 @@ function BackendCard({ selected, onClick, icon, title, description }: {
+ }
+ 
+ export function AIProviderPage() {
++  const { t } = useTranslation()
+   const [config, setConfig] = useState<AppConfig | null>(null)
+ 
+   useEffect(() => {
+@@ -117,55 +123,55 @@ export function AIProviderPage() {
+ 
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+-      <PageHeader title="AI Provider" description="Configure the AI backend, model, and API keys." />
++      <PageHeader title={t.aiProvider.title} description={t.aiProvider.titleDesc} />
+ 
+       {config ? (
+       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
+           <div className="max-w-[880px] mx-auto">
+             {/* Backend */}
+-            <ConfigSection title="Backend" description="Changes take effect immediately.">
++            <ConfigSection title={t.aiProvider.backend} description={t.aiProvider.backendDesc}>
+               <div className="grid grid-cols-3 gap-3">
+                 <BackendCard
+                   selected={uiBackend === 'agent-sdk'}
+                   onClick={() => handleBackendSwitch('agent-sdk')}
+                   icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a4 4 0 0 1 4 4v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V6a4 4 0 0 1 4-4z" /><path d="M8 8v2a4 4 0 0 0 8 0V8" /><path d="M12 14v4" /><path d="M8 22h8" /><circle cx="9" cy="5.5" r="0.5" fill="currentColor" stroke="none" /><circle cx="15" cy="5.5" r="0.5" fill="currentColor" stroke="none" /></svg>}
+                   title="Claude"
+-                  description="Claude Code login or Anthropic API key"
++                  description={t.aiProvider.claudeDesc}
+                 />
+                 <BackendCard
+                   selected={uiBackend === 'openai'}
+                   onClick={() => handleBackendSwitch('openai')}
+                   icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" /></svg>}
+                   title="OpenAI"
+-                  description="GPT models via OpenAI API"
++                  description={t.aiProvider.openaiDesc}
+                 />
+                 <BackendCard
+                   selected={uiBackend === 'vercel-ai-sdk'}
+                   onClick={() => handleBackendSwitch('vercel-ai-sdk')}
+                   icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>}
+                   title="Vercel AI SDK"
+-                  description="Multi-provider, custom endpoints"
++                  description={t.aiProvider.vercelAiSdkDesc}
+                 />
+               </div>
+             </ConfigSection>
+ 
+             {/* Auth mode (only for Agent SDK) */}
+             {uiBackend === 'agent-sdk' && (
+-              <ConfigSection title="Authentication" description="Choose how Alice connects to Claude.">
++              <ConfigSection title={t.aiProvider.authentication} description={t.aiProvider.authDesc}>
+                 <AgentSdkAuthForm aiProvider={config.aiProvider} onUpdate={(patch) => setConfig((c) => c ? { ...c, aiProvider: { ...c.aiProvider, ...patch } } : c)} />
+               </ConfigSection>
+             )}
+ 
+             {/* OpenAI simplified form */}
+             {uiBackend === 'openai' && (
+-              <ConfigSection title="Model" description="Select a model and enter your OpenAI API key.">
++              <ConfigSection title={t.aiProvider.model} description={t.aiProvider.modelDesc}>
+                 <OpenAIForm aiProvider={config.aiProvider} />
+               </ConfigSection>
+             )}
+ 
+             {/* Full model form (only for Vercel AI SDK) */}
+             {uiBackend === 'vercel-ai-sdk' && (
+-              <ConfigSection title="Model" description="Provider, model, and API keys. Changes take effect on the next request.">
++              <ConfigSection title={t.aiProvider.model} description={t.aiProvider.modelFullDesc}>
+                 <ModelForm aiProvider={config.aiProvider} />
+               </ConfigSection>
+             )}
+@@ -181,6 +187,7 @@ export function AIProviderPage() {
+ // ==================== OpenAI Form (simplified) ====================
+ 
+ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
++  const { t } = useTranslation()
+   const presets = PROVIDER_MODELS.openai
+   const initModel = aiProvider.provider === 'openai' && aiProvider.model ? aiProvider.model : presets[0].value
+   const isPreset = presets.some((p) => p.value === initModel)
+@@ -243,7 +250,7 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+ 
+   return (
+     <>
+-      <Field label="Model">
++      <Field label={t.aiProvider.modelId}>
+         <select
+           className={inputClass}
+           value={model || '__custom__'}
+@@ -252,12 +259,12 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+           {presets.map((m) => (
+             <option key={m.value} value={m.value}>{m.label}</option>
+           ))}
+-          <option value="__custom__">Custom...</option>
++          <option value="__custom__">{t.aiProvider.customModelId}</option>
+         </select>
+       </Field>
+ 
+       {!model && (
+-        <Field label="Custom Model ID">
++        <Field label={t.aiProvider.customModelId}>
+           <input
+             className={inputClass}
+             value={customModel}
+@@ -267,17 +274,17 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+         </Field>
+       )}
+ 
+-      <Field label="API Key">
++      <Field label={t.aiProvider.apiKey}>
+         <div className="relative">
+           <input
+             className={inputClass}
+             type="password"
+             value={apiKey}
+             onChange={(e) => setApiKey(e.target.value)}
+-            placeholder={hasKey ? '(configured)' : 'sk-...'}
++            placeholder={hasKey ? t.aiProvider.configured : 'sk-...'}
+           />
+           {hasKey && (
+-            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">active</span>
++            <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">{t.aiProvider.active}</span>
+           )}
+         </div>
+         <div className="flex items-center gap-3 mt-2">
+@@ -286,7 +293,7 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+             disabled={!apiKey || keySaveStatus === 'saving'}
+             className="btn-primary"
+           >
+-            Save Key
++            {t.aiProvider.saveKey}
+           </button>
+           <SaveIndicator status={keySaveStatus} onRetry={handleSaveKey} />
+         </div>
+@@ -309,6 +316,7 @@ function OpenAIForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+ // ==================== Model Form (full Vercel AI SDK) ====================
+ 
+ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
++  const { t } = useTranslation()
+   // Detect whether saved config should render as "Custom" in the UI
+   const initCustom = detectCustomMode(aiProvider.provider || 'anthropic', aiProvider.model || '')
+   const [uiProvider, setUiProvider] = useState(initCustom ? 'custom' : (aiProvider.provider || 'anthropic'))
+@@ -317,7 +325,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+   const [customModel, setCustomModel] = useState(initCustom ? (aiProvider.model || '') : '')
+   const [baseUrl, setBaseUrl] = useState(aiProvider.baseUrl || '')
+   const [showKeys, setShowKeys] = useState(false)
+-  const [keys, setKeys] = useState({ anthropic: '', openai: '', google: '' })
++  const [keys, setKeys] = useState({ anthropic: '', openai: '', google: '', minimax: '' })
+   const [keySaveStatus, setKeySaveStatus] = useState<SaveStatus>('idle')
+   const keySavedTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+ 
+@@ -354,6 +362,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+     anthropic: !!aiProvider.apiKeys?.anthropic,
+     openai: !!aiProvider.apiKeys?.openai,
+     google: !!aiProvider.apiKeys?.google,
++    minimax: !!aiProvider.apiKeys?.minimax,
+   }), [aiProvider.apiKeys])
+ 
+   const [liveKeyStatus, setLiveKeyStatus] = useState(keyStatus)
+@@ -364,14 +373,20 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+     if (keySavedTimer.current) clearTimeout(keySavedTimer.current)
+   }, [])
+ 
++  // Default base URLs per provider
++  const PROVIDER_BASE_URLS: Record<string, string> = {
++    minimax: 'https://api.minimaxi.com/anthropic/v1/messages',
++  }
++
+   const handleProviderChange = (newUiProvider: string) => {
+     setUiProvider(newUiProvider)
+-    setBaseUrl('')
+     if (newUiProvider === 'custom') {
++      setBaseUrl('')
+       setSdkProvider('openai')
+       setModel('')
+       setCustomModel('')
+     } else {
++      setBaseUrl(PROVIDER_BASE_URLS[newUiProvider] || '')
+       setSdkProvider(newUiProvider)
+       const defaults = PROVIDER_MODELS[newUiProvider]
+       if (defaults?.length) {
+@@ -401,13 +416,15 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+       if (keys.anthropic) updatedKeys.anthropic = keys.anthropic
+       if (keys.openai) updatedKeys.openai = keys.openai
+       if (keys.google) updatedKeys.google = keys.google
++      if (keys.minimax) updatedKeys.minimax = keys.minimax
+       await api.config.updateSection('aiProvider', { ...aiProvider, apiKeys: updatedKeys })
+       setLiveKeyStatus({
+         anthropic: !!updatedKeys.anthropic,
+         openai: !!updatedKeys.openai,
+         google: !!updatedKeys.google,
++        minimax: !!updatedKeys.minimax,
+       })
+-      setKeys({ anthropic: '', openai: '', google: '' })
++      setKeys({ anthropic: '', openai: '', google: '', minimax: '' })
+       setKeySaveStatus('saved')
+       if (keySavedTimer.current) clearTimeout(keySavedTimer.current)
+       keySavedTimer.current = setTimeout(() => setKeySaveStatus('idle'), 2000)
+@@ -418,7 +435,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+ 
+   return (
+     <>
+-      <Field label="Provider">
++      <Field label={t.aiProvider.provider}>
+         <div className="flex border border-border rounded-lg overflow-hidden">
+           {PROVIDERS.map((p, i) => (
+             <button
+@@ -438,7 +455,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+ 
+       {/* Custom mode: API format selector */}
+       {isCustomMode && (
+-        <Field label="API Format">
++        <Field label={t.aiProvider.apiFormat}>
+           <select
+             className={inputClass}
+             value={sdkProvider}
+@@ -449,14 +466,14 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+             ))}
+           </select>
+           <p className="text-[11px] text-text-muted mt-1">
+-            Which API protocol does your endpoint speak?
++            {t.aiProvider.apiFormatDesc}
+           </p>
+         </Field>
+       )}
+ 
+       {/* Standard mode: preset model dropdown */}
+       {!isCustomMode && (
+-        <Field label="Model">
++        <Field label={t.aiProvider.modelId}>
+           <select
+             className={inputClass}
+             value={isCustomModelInStandard || model === '' ? '__custom__' : model}
+@@ -465,14 +482,14 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+             {presets.map((m) => (
+               <option key={m.value} value={m.value}>{m.label}</option>
+             ))}
+-            <option value="__custom__">Custom...</option>
++            <option value="__custom__">{t.aiProvider.customModelId}</option>
+           </select>
+         </Field>
+       )}
+ 
+       {/* Free-text model ID — always shown in custom mode, or when "Custom..." selected in standard mode */}
+       {(isCustomMode || isCustomModelInStandard || (!isCustomMode && model === '')) && (
+-        <Field label={isCustomMode ? 'Model ID' : 'Custom Model ID'}>
++        <Field label={isCustomMode ? t.aiProvider.modelId : t.aiProvider.customModelId}>
+           <input
+             className={inputClass}
+             value={customModel || model}
+@@ -482,77 +499,116 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+         </Field>
+       )}
+ 
+-      <Field label="Base URL">
+-        <input
+-          className={inputClass}
+-          value={baseUrl}
+-          onChange={(e) => setBaseUrl(e.target.value)}
+-          placeholder={isCustomMode ? 'https://your-relay.example.com/v1' : 'Leave empty for official API'}
+-        />
+-        <p className="text-[11px] text-text-muted mt-1">
+-          {isCustomMode ? 'Your relay or proxy endpoint.' : 'Custom endpoint for proxy or relay.'}
+-        </p>
+-      </Field>
++      {uiProvider !== 'minimax' && (
++        <Field label={t.aiProvider.baseUrl}>
++          <input
++            className={inputClass}
++            value={baseUrl}
++            onChange={(e) => setBaseUrl(e.target.value)}
++            placeholder={isCustomMode ? t.aiProvider.relayBaseUrlPlaceholder : t.aiProvider.baseUrlPlaceholder}
++          />
++          <p className="text-[11px] text-text-muted mt-1">
++            {isCustomMode ? t.aiProvider.relayBaseUrlDesc : t.aiProvider.baseUrlDesc}
++          </p>
++        </Field>
++      )}
+ 
+       <SaveIndicator status={modelStatus} onRetry={modelRetry} />
+ 
+       {/* API Keys */}
+       <div className="mt-5 border-t border-border pt-4">
+-        <button
+-          onClick={() => setShowKeys(!showKeys)}
+-          className="flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text transition-colors"
+-        >
+-          <svg
+-            width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+-            className={`transition-transform ${showKeys ? 'rotate-90' : ''}`}
+-          >
+-            <polyline points="9 18 15 12 9 6" />
+-          </svg>
+-          API Keys
+-          <span className="text-[11px] text-text-muted/60 ml-1">
+-            ({Object.values(liveKeyStatus).filter(Boolean).length}/{Object.keys(liveKeyStatus).length} configured)
+-          </span>
+-        </button>
+-
+-        {showKeys && (
++        {uiProvider === 'minimax' ? (
++          // Minimax: only show one API Key field (ANTHROPIC_API_KEY)
+           <div className="mt-3 space-y-3">
+             <p className="text-[11px] text-text-muted">
+-              {isCustomMode
+-                ? 'Enter the API key for your relay. It will be sent under the matching provider header.'
+-                : 'Enter API keys below. Leave empty to keep existing value.'}
++              {t.aiProvider.enterApiKeysBelow}
+             </p>
+-            {(isCustomMode
+-              ? SDK_FORMATS.filter((f) => f.value === sdkProvider)
+-              : PROVIDERS.filter((p) => p.value !== 'custom')
+-            ).map((p) => (
+-              <Field key={p.value} label={isCustomMode ? `API Key (${p.label})` : `${p.label} API Key`}>
+-                <div className="relative">
+-                  <input
+-                    className={inputClass}
+-                    type="password"
+-                    value={keys[p.value as keyof typeof keys] ?? ''}
+-                    onChange={(e) => setKeys((k) => ({ ...k, [p.value]: e.target.value }))}
+-                    placeholder={liveKeyStatus[p.value as keyof typeof liveKeyStatus] ? '(configured)' : 'Not configured'}
+-                  />
+-                  {liveKeyStatus[p.value as keyof typeof liveKeyStatus] && (
+-                    <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">
+-                      active
+-                    </span>
+-                  )}
+-                </div>
+-              </Field>
+-            ))}
++            <Field label={t.aiProvider.apiKey + ' (Minimax)'}>
++              <div className="relative">
++                <input
++                  className={inputClass}
++                  type="password"
++                  value={keys.anthropic ?? ''}
++                  onChange={(e) => setKeys((k) => ({ ...k, anthropic: e.target.value }))}
++                  placeholder={liveKeyStatus.anthropic ? t.aiProvider.configured : 'sk-...'}
++                />
++                {liveKeyStatus.anthropic && (
++                  <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">
++                    {t.aiProvider.active}
++                  </span>
++                )}
++              </div>
++            </Field>
+             <div className="flex items-center gap-3">
+               <button
+                 onClick={handleSaveKeys}
+                 disabled={keySaveStatus === 'saving'}
+                 className="btn-primary"
+               >
+-                Save Keys
++                {t.aiProvider.saveKey}
+               </button>
+               <SaveIndicator status={keySaveStatus} onRetry={handleSaveKeys} />
+             </div>
+           </div>
++        ) : (
++          <>
++            <button
++              onClick={() => setShowKeys(!showKeys)}
++              className="flex items-center gap-1.5 text-[13px] text-text-muted hover:text-text transition-colors"
++            >
++              <svg
++                width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
++                className={`transition-transform ${showKeys ? 'rotate-90' : ''}`}
++              >
++                <polyline points="9 18 15 12 9 6" />
++              </svg>
++              API Keys
++              <span className="text-[11px] text-text-muted/60 ml-1">
++                ({Object.values(liveKeyStatus).filter(Boolean).length}/{Object.keys(liveKeyStatus).length} {t.aiProvider.configured})
++              </span>
++            </button>
++
++            {showKeys && (
++              <div className="mt-3 space-y-3">
++                <p className="text-[11px] text-text-muted">
++                  {isCustomMode
++                    ? t.aiProvider.enterApiKeyForRelay
++                    : t.aiProvider.enterApiKeysBelow}
++                </p>
++                {(isCustomMode
++                  ? SDK_FORMATS.filter((f) => f.value === sdkProvider)
++                  : PROVIDERS.filter((p) => p.value !== 'custom')
++                ).map((p) => (
++                  <Field key={p.value} label={`${t.aiProvider.apiKey} (${p.label})`}>
++                    <div className="relative">
++                      <input
++                        className={inputClass}
++                        type="password"
++                        value={keys[p.value as keyof typeof keys] ?? ''}
++                        onChange={(e) => setKeys((k) => ({ ...k, [p.value]: e.target.value }))}
++                        placeholder={liveKeyStatus[p.value as keyof typeof liveKeyStatus] ? t.aiProvider.configured : t.aiProvider.notConfigured}
++                      />
++                      {liveKeyStatus[p.value as keyof typeof liveKeyStatus] && (
++                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">
++                          {t.aiProvider.active}
++                        </span>
++                      )}
++                    </div>
++                  </Field>
++                ))}
++                <div className="flex items-center gap-3">
++                  <button
++                    onClick={handleSaveKeys}
++                    disabled={keySaveStatus === 'saving'}
++                    className="btn-primary"
++                  >
++                    {t.aiProvider.saveKeys}
++                  </button>
++                  <SaveIndicator status={keySaveStatus} onRetry={handleSaveKeys} />
++                </div>
++              </div>
++            )}
++          </>
+         )}
+       </div>
+     </>
+@@ -562,6 +618,7 @@ function ModelForm({ aiProvider }: { aiProvider: AIProviderConfig }) {
+ // ==================== Agent SDK Auth Form ====================
+ 
+ function AgentSdkAuthForm({ aiProvider, onUpdate }: { aiProvider: AIProviderConfig; onUpdate: (patch: Partial<AIProviderConfig>) => void }) {
++  const { t } = useTranslation()
+   const [loginMethod, setLoginMethod] = useState<LoginMethod>(aiProvider.loginMethod ?? 'api-key')
+   const [apiKey, setApiKey] = useState('')
+   const [keySaveStatus, setKeySaveStatus] = useState<SaveStatus>('idle')
+@@ -602,27 +659,27 @@ function AgentSdkAuthForm({ aiProvider, onUpdate }: { aiProvider: AIProviderConf
+             icon={m.value === 'claudeai'
+               ? <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><polyline points="10 17 15 12 10 7" /><line x1="15" y1="12" x2="3" y2="12" /></svg>
+               : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" /></svg>}
+-            title={m.label}
+-            description={m.subtitle}
++            title={t.aiProvider.loginMethod[m.labelKey as keyof typeof t.aiProvider.loginMethod] as string}
++            description={t.aiProvider.loginMethod[m.subtitleKey as keyof typeof t.aiProvider.loginMethod] as string}
+           />
+         ))}
+       </div>
+       <p className="text-[11px] text-text-muted mt-2">
+-        {LOGIN_METHODS.find((m) => m.value === loginMethod)?.hint}
++        {t.aiProvider.loginMethod[LOGIN_METHODS.find((m) => m.value === loginMethod)?.hintKey as keyof typeof t.aiProvider.loginMethod] as string}
+       </p>
+ 
+       {loginMethod === 'api-key' && (
+-        <Field label="Anthropic API Key">
++        <Field label={t.aiProvider.apiKey + ' (Anthropic)'}>
+           <div className="relative">
+             <input
+               className={inputClass}
+               type="password"
+               value={apiKey}
+               onChange={(e) => setApiKey(e.target.value)}
+-              placeholder={aiProvider.apiKeys?.anthropic ? '(configured)' : 'sk-ant-...'}
++              placeholder={aiProvider.apiKeys?.anthropic ? t.aiProvider.configured : 'sk-ant-...'}
+             />
+             {aiProvider.apiKeys?.anthropic && (
+-              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">active</span>
++              <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-green">{t.aiProvider.active}</span>
+             )}
+           </div>
+           <div className="flex items-center gap-3 mt-2">
+@@ -631,7 +688,7 @@ function AgentSdkAuthForm({ aiProvider, onUpdate }: { aiProvider: AIProviderConf
+               disabled={!apiKey || keySaveStatus === 'saving'}
+               className="btn-primary"
+             >
+-              Save Key
++              {t.aiProvider.saveKey}
+             </button>
+             <SaveIndicator status={keySaveStatus} onRetry={handleSaveKey} />
+           </div>
+diff --git a/ui/src/pages/AgentStatusPage.tsx b/ui/src/pages/AgentStatusPage.tsx
+index 7bfadb9..fe6420d 100644
+--- a/ui/src/pages/AgentStatusPage.tsx
++++ b/ui/src/pages/AgentStatusPage.tsx
+@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
+ import { api, type ToolCallRecord } from '../api'
+ import { useSSE } from '../hooks/useSSE'
+ import { PageHeader } from '../components/PageHeader'
++import { useTranslation } from '../i18n'
+ 
+ // ==================== Helpers ====================
+ 
+@@ -27,6 +28,7 @@ function statusColor(status: string): string {
+ const PAGE_SIZE = 100
+ 
+ export function AgentStatusPage() {
++  const { t } = useTranslation()
+   const [entries, setEntries] = useState<ToolCallRecord[]>([])
+   const [nameFilter, setNameFilter] = useState('')
+   const [paused, setPaused] = useState(false)
+@@ -58,7 +60,6 @@ export function AgentStatusPage() {
+ 
+   useEffect(() => { fetchPage(1) }, [fetchPage])
+ 
+-  // Track tool names for filter dropdown
+   useEffect(() => {
+     if (entries.length > 0) {
+       setToolNames((prev) => {
+@@ -69,7 +70,6 @@ export function AgentStatusPage() {
+     }
+   }, [entries])
+ 
+-  // SSE real-time updates
+   useSSE({
+     url: '/api/agent-status/stream',
+     onMessage: (record: ToolCallRecord) => {
+@@ -100,7 +100,7 @@ export function AgentStatusPage() {
+ 
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+-      <PageHeader title="Agent Status" />
++      <PageHeader title={t.agentStatus.title} />
+ 
+       <div className="flex-1 flex flex-col min-h-0 px-4 md:px-6 py-5">
+         <div className="flex flex-col gap-3 h-full">
+@@ -111,7 +111,7 @@ export function AgentStatusPage() {
+               onChange={(e) => handleNameChange(e.target.value)}
+               className="bg-bg-tertiary text-text text-sm rounded-md border border-border px-2 py-1.5 outline-none focus:border-accent"
+             >
+-              <option value="">All tools</option>
++              <option value="">{t.agentStatus.allTools}</option>
+               {toolNames.map((n) => (
+                 <option key={n} value={n}>{n}</option>
+               ))}
+@@ -125,15 +125,15 @@ export function AgentStatusPage() {
+                   : 'border-border text-text-muted hover:bg-bg-tertiary'
+               }`}
+             >
+-              {paused ? 'Resume' : 'Pause'}
++              {paused ? t.agentStatus.resume : t.agentStatus.pause}
+             </button>
+ 
+             <span className="text-xs text-text-muted ml-auto">
+               {total > 0
+-                ? `Page ${page} of ${totalPages} \u00b7 ${total} calls`
+-                : '0 calls'
++                ? `Page ${page} of ${totalPages} · ${total} ${t.agentStatus.calls}`
++                : `0 ${t.agentStatus.calls}`
+               }
+-              {nameFilter && ' (filtered)'}
++              {nameFilter && ` ${t.agentStatus.filtered}`}
+             </span>
+           </div>
+ 
+@@ -143,19 +143,19 @@ export function AgentStatusPage() {
+             className="flex-1 min-h-0 bg-bg rounded-lg border border-border overflow-y-auto font-mono text-xs"
+           >
+             {loading && entries.length === 0 ? (
+-              <div className="px-4 py-8 text-center text-text-muted">Loading...</div>
++              <div className="px-4 py-8 text-center text-text-muted">{t.agentStatus.loading}</div>
+             ) : entries.length === 0 ? (
+-              <div className="px-4 py-8 text-center text-text-muted">No tool calls yet</div>
++              <div className="px-4 py-8 text-center text-text-muted">{t.agentStatus.noToolCalls}</div>
+             ) : (
+               <table className="w-full">
+                 <thead className="sticky top-0 bg-bg-secondary">
+                   <tr className="text-text-muted text-left">
+                     <th className="px-3 py-2 w-12">#</th>
+-                    <th className="px-3 py-2 w-36">Time</th>
+-                    <th className="px-3 py-2 w-48">Tool</th>
+-                    <th className="px-3 py-2 w-20 text-right">Duration</th>
+-                    <th className="px-3 py-2 w-16 text-center">Status</th>
+-                    <th className="px-3 py-2">Input</th>
++                    <th className="px-3 py-2 w-36">{t.agentStatus.time}</th>
++                    <th className="px-3 py-2 w-48">{t.agentStatus.tool}</th>
++                    <th className="px-3 py-2 w-20 text-right">{t.agentStatus.duration}</th>
++                    <th className="px-3 py-2 w-16 text-center">{t.agentStatus.status}</th>
++                    <th className="px-3 py-2">{t.agentStatus.input}</th>
+                   </tr>
+                 </thead>
+                 <tbody>
+@@ -170,37 +170,11 @@ export function AgentStatusPage() {
+           {/* Pagination */}
+           {totalPages > 1 && (
+             <div className="flex items-center justify-center gap-2 shrink-0">
+-              <button
+-                onClick={() => goToPage(1)}
+-                disabled={page <= 1 || loading}
+-                className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+-              >
+-                &laquo;&laquo;
+-              </button>
+-              <button
+-                onClick={() => goToPage(page - 1)}
+-                disabled={page <= 1 || loading}
+-                className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+-              >
+-                &laquo;
+-              </button>
+-              <span className="text-xs text-text-muted px-2">
+-                {page} / {totalPages}
+-              </span>
+-              <button
+-                onClick={() => goToPage(page + 1)}
+-                disabled={page >= totalPages || loading}
+-                className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+-              >
+-                &raquo;
+-              </button>
+-              <button
+-                onClick={() => goToPage(totalPages)}
+-                disabled={page >= totalPages || loading}
+-                className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+-              >
+-                &raquo;&raquo;
+-              </button>
++              <button onClick={() => goToPage(1)} disabled={page <= 1 || loading} className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed">&laquo;&laquo;</button>
++              <button onClick={() => goToPage(page - 1)} disabled={page <= 1 || loading} className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed">&laquo;</button>
++              <span className="text-xs text-text-muted px-2">{page} / {totalPages}</span>
++              <button onClick={() => goToPage(page + 1)} disabled={page >= totalPages || loading} className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed">&raquo;</button>
++              <button onClick={() => goToPage(totalPages)} disabled={page >= totalPages || loading} className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed">&raquo;&raquo;</button>
+             </div>
+           )}
+         </div>
+@@ -212,6 +186,7 @@ export function AgentStatusPage() {
+ // ==================== Row ====================
+ 
+ function ToolCallRow({ record }: { record: ToolCallRecord }) {
++  const { t } = useTranslation()
+   const [expanded, setExpanded] = useState(false)
+   const inputStr = JSON.stringify(record.input)
+   const inputPreview = inputStr.length > 100 ? inputStr.slice(0, 100) + '...' : inputStr
+@@ -236,13 +211,13 @@ function ToolCallRow({ record }: { record: ToolCallRecord }) {
+         <tr className="border-t border-border/30">
+           <td colSpan={6} className="px-3 py-2 space-y-2">
+             <div>
+-              <span className="text-text-muted text-[11px] uppercase tracking-wide">Input</span>
++              <span className="text-text-muted text-[11px] uppercase tracking-wide">{t.agentStatus.input}</span>
+               <pre className="text-text-muted whitespace-pre-wrap break-all bg-bg-tertiary rounded p-2 text-[11px] mt-1">
+                 {JSON.stringify(record.input, null, 2)}
+               </pre>
+             </div>
+             <div>
+-              <span className="text-text-muted text-[11px] uppercase tracking-wide">Output</span>
++              <span className="text-text-muted text-[11px] uppercase tracking-wide">{t.agentStatus.output}</span>
+               <pre className="text-text-muted whitespace-pre-wrap break-all bg-bg-tertiary rounded p-2 text-[11px] mt-1 max-h-64 overflow-y-auto">
+                 {formatOutput(record.output)}
+               </pre>
+@@ -254,7 +229,6 @@ function ToolCallRow({ record }: { record: ToolCallRecord }) {
+   )
+ }
+ 
+-/** Try to pretty-print JSON output, fall back to raw string. */
+ function formatOutput(output: string): string {
+   try {
+     return JSON.stringify(JSON.parse(output), null, 2)
+diff --git a/ui/src/pages/ChatPage.tsx b/ui/src/pages/ChatPage.tsx
+index a530feb..213ad77 100644
+--- a/ui/src/pages/ChatPage.tsx
++++ b/ui/src/pages/ChatPage.tsx
+@@ -6,12 +6,14 @@ import { ChatMessage, ToolCallGroup, ThinkingIndicator, StreamingToolGroup } fro
+ import { ChatInput } from '../components/ChatInput'
+ import { ChannelConfigModal } from '../components/ChannelConfigModal'
+ import { PushApprovalPanel } from '../components/PushApprovalPanel'
++import { useTranslation } from '../i18n'
+ 
+ interface ChatPageProps {
+   onSSEStatus?: (connected: boolean) => void
+ }
+ 
+ export function ChatPage({ onSSEStatus }: ChatPageProps) {
++  const { t } = useTranslation()
+   const [channels, setChannels] = useState<ChannelListItem[]>([{ id: 'default', label: 'Alice' }])
+   const [activeChannel, setActiveChannel] = useState('default')
+   const [showScrollBtn, setShowScrollBtn] = useState(false)
+@@ -104,7 +106,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+   const handleCreateChannel = useCallback(async () => {
+     setNewChannelError('')
+     if (!newChannelId.trim() || !newChannelLabel.trim()) {
+-      setNewChannelError('ID and label are required')
++      setNewChannelError(t.chat.error + ': ID and label required')
+       return
+     }
+     try {
+@@ -114,7 +116,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+       setNewChannelId('')
+       setNewChannelLabel('')
+     } catch (err) {
+-      setNewChannelError(err instanceof Error ? err.message : 'Failed to create channel')
++      setNewChannelError(err instanceof Error ? err.message : t.chat.error)
+     }
+   }, [newChannelId, newChannelLabel, switchToChannel])
+ 
+@@ -153,7 +155,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+             <button
+               onClick={() => setEditingChannel(activeChannelConfig)}
+               className="ml-auto w-6 h-6 rounded flex items-center justify-center text-text-muted/50 hover:text-text-muted hover:bg-bg-secondary transition-colors"
+-              title="Channel settings"
++              title={t.chat.editChannel}
+             >
+               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                 <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+@@ -172,7 +174,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+             <button
+               onClick={() => setPopoverOpen((v) => !v)}
+               className="w-7 h-7 rounded-md flex items-center justify-center text-text-muted/40 hover:text-text-muted hover:bg-bg-secondary/80 transition-all"
+-              aria-label="Channels"
++              aria-label={t.chat.channels}
+             >
+               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                 <path d="M4 9h16M4 15h16M10 3l-2 18M16 3l-2 18" />
+@@ -196,7 +198,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+                       <span
+                         onClick={(e) => { e.stopPropagation(); setEditingChannel(ch); setPopoverOpen(false) }}
+                         className="w-5 h-5 rounded flex items-center justify-center text-text-muted hover:text-text hover:bg-bg-secondary cursor-pointer"
+-                        title="Settings"
++                        title={t.chat.editChannel}
+                       >
+                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                           <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+@@ -206,7 +208,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+                       <span
+                         onClick={(e) => handleDeleteChannel(ch.id, e)}
+                         className="w-5 h-5 rounded flex items-center justify-center text-text-muted hover:text-red-400 hover:bg-red-400/10 cursor-pointer"
+-                        title="Delete"
++                        title={t.chat.deleteChannel}
+                       >
+                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                           <path d="M18 6L6 18M6 6l12 12" />
+@@ -226,13 +228,13 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                       <path d="M12 5v14M5 12h14" />
+                     </svg>
+-                    New channel
++                    {t.chat.newChannel}
+                   </button>
+                 ) : (
+                   <div className="px-3 py-2 space-y-2">
+                     <input
+                       type="text"
+-                      placeholder="id (e.g. research)"
++                      placeholder={t.chat.channelId + ' (e.g. research)'}
+                       value={newChannelId}
+                       onChange={(e) => setNewChannelId(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ''))}
+                       className="w-full text-xs px-2 py-1.5 rounded border border-border bg-bg-secondary text-text placeholder:text-text-muted focus:outline-none focus:border-accent"
+@@ -240,7 +242,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+                     />
+                     <input
+                       type="text"
+-                      placeholder="label"
++                      placeholder={t.chat.channelLabel}
+                       value={newChannelLabel}
+                       onChange={(e) => setNewChannelLabel(e.target.value)}
+                       className="w-full text-xs px-2 py-1.5 rounded border border-border bg-bg-secondary text-text placeholder:text-text-muted focus:outline-none focus:border-accent"
+@@ -250,13 +252,13 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+                         onClick={handleCreateChannel}
+                         className="text-xs px-2.5 py-1 rounded bg-accent text-white hover:bg-accent/80 transition-colors"
+                       >
+-                        Create
++                        {t.chat.create}
+                       </button>
+                       <button
+                         onClick={() => { setShowNewForm(false); setNewChannelError(''); setNewChannelId(''); setNewChannelLabel('') }}
+                         className="text-xs px-2 py-1 rounded text-text-muted hover:text-text"
+                       >
+-                        Cancel
++                        {t.chat.cancel}
+                       </button>
+                     </div>
+                     {newChannelError && <p className="text-xs text-red-400">{newChannelError}</p>}
+@@ -280,13 +282,13 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+             <div className="text-center">
+               {activeChannel === 'default' ? (
+                 <>
+-                  <h2 className="text-lg font-semibold text-text mb-1">Hi, I'm Alice</h2>
+-                  <p className="text-sm text-text-muted">Send a message to start chatting</p>
++                  <h2 className="text-lg font-semibold text-text mb-1">Hi, I&apos;m Alice</h2>
++                  <p className="text-sm text-text-muted">{activeChannel === 'default' ? t.chat.channels : t.chat.newChannel}</p>
+                 </>
+               ) : (
+                 <>
+                   <h2 className="text-lg font-semibold text-text mb-1">{activeChannelConfig?.label ?? activeChannel}</h2>
+-                  <p className="text-sm text-text-muted">Send a message to start chatting</p>
++                  <p className="text-sm text-text-muted">{t.chat.newChannel}</p>
+                 </>
+               )}
+             </div>
+@@ -384,7 +386,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+           <button
+             onClick={handleScrollToBottom}
+             className="absolute -top-14 left-1/2 -translate-x-1/2 w-10 h-10 rounded-full bg-bg-secondary border border-border text-text-muted hover:text-text hover:border-accent/50 flex items-center justify-center transition-all shadow-lg z-10"
+-            aria-label="Scroll to bottom"
++            aria-label={t.chat.scrollToBottom}
+           >
+             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+               <path d="M12 5v14M5 12l7 7 7-7" />
+@@ -392,6 +394,7 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
+             {newMsgCount > 0 && (
+               <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] rounded-full bg-accent text-white text-[10px] font-semibold flex items-center justify-center px-1">
+                 {newMsgCount > 99 ? '99+' : newMsgCount}
++                <span className="ml-1">{t.chat.newMessages}</span>
+               </span>
+             )}
+           </button>
+diff --git a/ui/src/pages/ConnectorsPage.tsx b/ui/src/pages/ConnectorsPage.tsx
+index f9d874d..6070324 100644
+--- a/ui/src/pages/ConnectorsPage.tsx
++++ b/ui/src/pages/ConnectorsPage.tsx
+@@ -6,8 +6,10 @@ import { SDKSelector, CONNECTOR_OPTIONS } from '../components/SDKSelector'
+ import { ConfigSection, Field, inputClass } from '../components/form'
+ import { PageHeader } from '../components/PageHeader'
+ import type { AppConfig, ConnectorsConfig } from '../api'
++import { useTranslation } from '../i18n'
+ 
+ export function ConnectorsPage() {
++  const { t } = useTranslation()
+   const [searchParams, setSearchParams] = useSearchParams()
+   const [pendingChatId, setPendingChatId] = useState<number | null>(null)
+ 
+@@ -58,8 +60,8 @@ export function ConnectorsPage() {
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+       <PageHeader
+-        title="Connectors"
+-        description="Service ports and external integrations. Changes require a restart."
++        title={t.connectors.title}
++        description={t.connectors.titleDesc}
+         right={<SaveIndicator status={status} onRetry={retry} />}
+       />
+ 
+@@ -91,8 +93,8 @@ export function ConnectorsPage() {
+             )}
+             {/* Connector selector cards */}
+             <ConfigSection
+-              title="Active Connectors"
+-              description="Select which connectors to enable. Web UI and MCP Server are always active."
++              title={t.connectors.activeConnectors}
++              description={t.connectors.activeConnectorsDesc}
+             >
+               <SDKSelector
+                 options={CONNECTOR_OPTIONS}
+@@ -103,10 +105,10 @@ export function ConnectorsPage() {
+ 
+             {/* Web UI config — always shown */}
+             <ConfigSection
+-              title="Web UI"
+-              description="Browser-based chat and configuration interface."
++              title={t.connectors.webUi}
++              description={t.connectors.webUiDesc}
+             >
+-              <Field label="Port">
++              <Field label={t.connectors.port}>
+                 <input
+                   className={inputClass}
+                   type="number"
+@@ -118,10 +120,10 @@ export function ConnectorsPage() {
+ 
+             {/* MCP Server config — always shown */}
+             <ConfigSection
+-              title="MCP Server"
+-              description="Tool bridge for Claude Code provider and external AI agents."
++              title={t.connectors.mcpServer}
++              description={t.connectors.mcpServerDesc}
+             >
+-              <Field label="Port">
++              <Field label={t.connectors.port}>
+                 <input
+                   className={inputClass}
+                   type="number"
+@@ -134,10 +136,10 @@ export function ConnectorsPage() {
+             {/* MCP Ask config */}
+             {config.mcpAsk.enabled && (
+               <ConfigSection
+-                title="MCP Ask"
+-                description="Multi-turn conversation endpoint for external agents."
++                title={t.connectors.mcpAsk}
++                description={t.connectors.mcpAskDesc}
+               >
+-                <Field label="Port">
++                <Field label={t.connectors.port}>
+                   <input
+                     className={inputClass}
+                     type="number"
+@@ -146,7 +148,7 @@ export function ConnectorsPage() {
+                       const v = e.target.value
+                       updateConfig({ mcpAsk: { ...config.mcpAsk, port: v ? Number(v) : undefined } })
+                     }}
+-                    placeholder="e.g. 3003"
++                    placeholder={t.connectors.placeholder.port}
+                   />
+                 </Field>
+               </ConfigSection>
+@@ -155,10 +157,10 @@ export function ConnectorsPage() {
+             {/* Telegram config */}
+             {config.telegram.enabled && (
+               <ConfigSection
+-                title="Telegram"
+-                description="Create a bot via @BotFather, paste the token below, and add your chat ID."
++                title={t.connectors.telegram}
++                description={t.connectors.telegramDesc}
+               >
+-                <Field label="Bot Token">
++                <Field label={t.connectors.botToken}>
+                   <input
+                     className={inputClass}
+                     type="password"
+@@ -168,10 +170,10 @@ export function ConnectorsPage() {
+                         telegram: { ...config.telegram, botToken: e.target.value || undefined },
+                       })
+                     }
+-                    placeholder="123456:ABC-DEF..."
++                    placeholder={t.connectors.placeholder.botToken}
+                   />
+                 </Field>
+-                <Field label="Bot Username">
++                <Field label={t.connectors.botUsername}>
+                   <input
+                     className={inputClass}
+                     value={config.telegram.botUsername ?? ''}
+@@ -180,10 +182,10 @@ export function ConnectorsPage() {
+                         telegram: { ...config.telegram, botUsername: e.target.value || undefined },
+                       })
+                     }
+-                    placeholder="my_bot"
++                    placeholder={t.connectors.placeholder.botUsername}
+                   />
+                 </Field>
+-                <Field label="Allowed Chat IDs">
++                <Field label={t.connectors.allowedChatIds}>
+                   <input
+                     className={inputClass}
+                     value={config.telegram.chatIds.join(', ')}
+@@ -200,14 +202,14 @@ export function ConnectorsPage() {
+                         },
+                       })
+                     }
+-                    placeholder="Comma-separated, e.g. 123456, 789012"
++                    placeholder={t.connectors.placeholder.chatIds}
+                   />
+                 </Field>
+               </ConfigSection>
+             )}
+           </div>
+         )}
+-        {loadError && <p className="text-[13px] text-red">Failed to load configuration.</p>}
++        {loadError && <p className="text-[13px] text-red">{t.connectors.loadFailed}</p>}
+       </div>
+     </div>
+   )
+diff --git a/ui/src/pages/DevPage.tsx b/ui/src/pages/DevPage.tsx
+index 45ef2c7..3348ecc 100644
+--- a/ui/src/pages/DevPage.tsx
++++ b/ui/src/pages/DevPage.tsx
+@@ -3,6 +3,7 @@ import { Section } from '../components/form'
+ import { PageHeader } from '../components/PageHeader'
+ import { Spinner, EmptyState } from '../components/StateViews'
+ import { useToast } from '../components/Toast'
++import { useTranslation } from '../i18n'
+ import {
+   devApi,
+   type RegistryResponse,
+@@ -19,36 +20,37 @@ import {
+ 
+ type Tab = 'connectors' | 'tools' | 'sessions'
+ 
+-const TABS: { key: Tab; label: string }[] = [
+-  { key: 'connectors', label: 'Connectors' },
+-  { key: 'tools', label: 'Tools' },
+-  { key: 'sessions', label: 'Sessions' },
++const TABS: { key: Tab; labelKey: 'connectors' | 'tools' | 'sessions' }[] = [
++  { key: 'connectors', labelKey: 'connectors' },
++  { key: 'tools', labelKey: 'tools' },
++  { key: 'sessions', labelKey: 'sessions' },
+ ]
+ 
+ // ==================== DevPage ====================
+ 
+ export function DevPage() {
++  const { t } = useTranslation()
+   const [tab, setTab] = useState<Tab>('connectors')
+ 
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+-      <PageHeader title="Dev" />
++      <PageHeader title={t.dev.title} />
+ 
+       {/* Tab bar */}
+       <div className="px-4 md:px-6 border-b border-border/60">
+         <div className="flex gap-1">
+-          {TABS.map((t) => (
++          {TABS.map((tabItem) => (
+             <button
+-              key={t.key}
+-              onClick={() => setTab(t.key)}
++              key={tabItem.key}
++              onClick={() => setTab(tabItem.key)}
+               className={`px-3 py-2 text-sm font-medium transition-colors relative ${
+-                tab === t.key
++                tab === tabItem.key
+                   ? 'text-accent'
+                   : 'text-text-muted hover:text-text'
+               }`}
+             >
+-              {t.label}
+-              {tab === t.key && (
++              {t.dev[tabItem.labelKey]}
++              {tab === tabItem.key && (
+                 <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-accent rounded-t" />
+               )}
+             </button>
+@@ -80,6 +82,7 @@ function ConnectorsTab() {
+ }
+ 
+ function RegistrySection() {
++  const { t } = useTranslation()
+   const [data, setData] = useState<RegistryResponse | null>(null)
+ 
+   const refresh = useCallback(() => {
+@@ -89,28 +92,28 @@ function RegistrySection() {
+   useEffect(() => { refresh() }, [refresh])
+ 
+   return (
+-    <Section title="Connector Registry" description="Active connectors and last user interaction.">
++    <Section title={t.dev.registry} description={t.dev.registryDesc}>
+       <div className="flex items-center gap-2 mb-3">
+         <button
+           onClick={refresh}
+           className="px-2.5 py-1 text-xs bg-bg-tertiary text-text-muted rounded hover:text-text transition-colors"
+         >
+-          Refresh
++          {t.dev.refresh}
+         </button>
+       </div>
+ 
+       {data && (
+         <div className="space-y-2">
+           {data.connectors.length === 0 ? (
+-            <p className="text-sm text-text-muted">No connectors registered.</p>
++            <p className="text-sm text-text-muted">{t.dev.noConnectors}</p>
+           ) : (
+             <table className="w-full text-sm">
+               <thead>
+                 <tr className="text-left text-text-muted text-xs">
+-                  <th className="pb-1 pr-3">Channel</th>
+-                  <th className="pb-1 pr-3">To</th>
+-                  <th className="pb-1 pr-3">Push</th>
+-                  <th className="pb-1">Media</th>
++                  <th className="pb-1 pr-3">{t.dev.channel}</th>
++                  <th className="pb-1 pr-3">{t.dev.to}</th>
++                  <th className="pb-1 pr-3">{t.dev.push}</th>
++                  <th className="pb-1">{t.dev.media}</th>
+                 </tr>
+               </thead>
+               <tbody>
+@@ -118,8 +121,8 @@ function RegistrySection() {
+                   <tr key={cn.channel} className="text-text hover:bg-bg-tertiary/30 transition-colors">
+                     <td className="py-0.5 pr-3 font-mono text-xs">{cn.channel}</td>
+                     <td className="py-0.5 pr-3 font-mono text-xs">{cn.to}</td>
+-                    <td className="py-0.5 pr-3">{cn.capabilities.push ? 'yes' : 'no'}</td>
+-                    <td className="py-0.5">{cn.capabilities.media ? 'yes' : 'no'}</td>
++                    <td className="py-0.5 pr-3">{cn.capabilities.push ? t.dev.yes : t.dev.no}</td>
++                    <td className="py-0.5">{cn.capabilities.media ? t.dev.yes : t.dev.no}</td>
+                   </tr>
+                 ))}
+               </tbody>
+@@ -127,14 +130,14 @@ function RegistrySection() {
+           )}
+ 
+           <div className="pt-2 text-xs text-text-muted">
+-            Last interaction:{' '}
++            {t.dev.lastInteraction}{' '}
+             {data.lastInteraction ? (
+               <span className="font-mono">
+                 {data.lastInteraction.channel}:{data.lastInteraction.to}{' '}
+                 ({new Date(data.lastInteraction.ts).toLocaleTimeString()})
+               </span>
+             ) : (
+-              'none'
++              t.dev.none
+             )}
+           </div>
+         </div>
+@@ -144,6 +147,7 @@ function RegistrySection() {
+ }
+ 
+ function SendSection() {
++  const { t } = useTranslation()
+   const [channels, setChannels] = useState<string[]>([])
+   const [channel, setChannel] = useState('')
+   const [kind, setKind] = useState<'message' | 'notification'>('notification')
+@@ -168,7 +172,7 @@ function SendSection() {
+         text: text.trim(),
+         source,
+       })
+-      toast.success(`Sent to ${res.channel}:${res.to}`)
++      toast.success(`${t.dev.sentTo} ${res.channel}:${res.to}`)
+     } catch (err) {
+       toast.error(err instanceof Error ? err.message : String(err))
+     } finally {
+@@ -179,53 +183,53 @@ function SendSection() {
+   const selectClass = 'px-2.5 py-2 bg-bg text-text border border-border rounded-md text-sm outline-none focus:border-accent'
+ 
+   return (
+-    <Section title="Test Send" description="Send a test message or notification through the connector pipeline.">
++    <Section title={t.dev.testSend} description={t.dev.testSendDesc}>
+       <div className="space-y-3">
+         <div className="flex gap-3">
+           <div className="flex-1">
+-            <label className="block text-[13px] text-text-muted mb-1">Channel</label>
++            <label className="block text-[13px] text-text-muted mb-1">{t.dev.channel}</label>
+             <select
+               value={channel}
+               onChange={(e) => setChannel(e.target.value)}
+               className={selectClass + ' w-full'}
+             >
+-              <option value="">auto (resolveDeliveryTarget)</option>
++              <option value="">{t.dev.channelAuto}</option>
+               {channels.map((ch) => (
+                 <option key={ch} value={ch}>{ch}</option>
+               ))}
+             </select>
+           </div>
+           <div>
+-            <label className="block text-[13px] text-text-muted mb-1">Kind</label>
++            <label className="block text-[13px] text-text-muted mb-1">{t.dev.kind}</label>
+             <select
+               value={kind}
+               onChange={(e) => setKind(e.target.value as typeof kind)}
+               className={selectClass}
+             >
+-              <option value="notification">notification</option>
+-              <option value="message">message</option>
++              <option value="notification">{t.dev.notification}</option>
++              <option value="message">{t.dev.message_noti}</option>
+             </select>
+           </div>
+           <div>
+-            <label className="block text-[13px] text-text-muted mb-1">Source</label>
++            <label className="block text-[13px] text-text-muted mb-1">{t.dev.source}</label>
+             <select
+               value={source}
+               onChange={(e) => setSource(e.target.value as typeof source)}
+               className={selectClass}
+             >
+-              <option value="manual">manual</option>
+-              <option value="heartbeat">heartbeat</option>
+-              <option value="cron">cron</option>
++              <option value="manual">{t.dev.manual}</option>
++              <option value="heartbeat">{t.dev.heartbeat}</option>
++              <option value="cron">{t.dev.cron}</option>
+             </select>
+           </div>
+         </div>
+ 
+         <div>
+-          <label className="block text-[13px] text-text-muted mb-1">Message</label>
++          <label className="block text-[13px] text-text-muted mb-1">{t.dev.message}</label>
+           <textarea
+             value={text}
+             onChange={(e) => setText(e.target.value)}
+-            placeholder="Test message..."
++            placeholder={t.dev.testMessagePlaceholder}
+             rows={3}
+             className="w-full px-2.5 py-2 bg-bg text-text border border-border rounded-md font-sans text-sm outline-none transition-colors focus:border-accent resize-y"
+           />
+@@ -236,7 +240,7 @@ function SendSection() {
+           disabled={sending || !text.trim()}
+           className="btn-primary-sm"
+         >
+-          {sending ? 'Sending...' : 'Send'}
++          {sending ? t.dev.sending : t.dev.send}
+         </button>
+ 
+       </div>
+@@ -257,6 +261,7 @@ function SessionsTab() {
+ }
+ 
+ function SessionsSection() {
++  const { t } = useTranslation()
+   const [sessions, setSessions] = useState<SessionInfo[] | null>(null)
+ 
+   useEffect(() => {
+@@ -270,17 +275,17 @@ function SessionsSection() {
+   }
+ 
+   return (
+-    <Section title="Sessions" description="Active session files on disk.">
++    <Section title={t.dev.sessions} description={t.dev.sessionsDesc}>
+       {sessions === null ? (
+         <div className="flex justify-center py-6"><Spinner size="sm" /></div>
+       ) : sessions.length === 0 ? (
+-        <EmptyState title="No sessions found." />
++        <EmptyState title={t.dev.noSessions} />
+       ) : (
+         <table className="w-full text-sm">
+           <thead>
+             <tr className="text-left text-text-muted text-xs">
+-              <th className="pb-1 pr-3">Session ID</th>
+-              <th className="pb-1 text-right">Size</th>
++              <th className="pb-1 pr-3">{t.dev.sessionId}</th>
++              <th className="pb-1 text-right">{t.dev.size}</th>
+             </tr>
+           </thead>
+           <tbody>
+@@ -300,6 +305,7 @@ function SessionsSection() {
+ // ==================== Tools Tab ====================
+ 
+ function ToolsTab() {
++  const { t } = useTranslation()
+   const [inventory, setInventory] = useState<ToolInfo[]>([])
+   const [selected, setSelected] = useState<string | null>(null)
+   const [detail, setDetail] = useState<ToolDetail | null>(null)
+@@ -362,7 +368,7 @@ function ToolsTab() {
+             type="text"
+             value={filter}
+             onChange={(e) => setFilter(e.target.value)}
+-            placeholder="Filter tools..."
++            placeholder={t.dev.filterTools}
+             className="w-full px-2.5 py-1.5 bg-bg text-text border border-border rounded-md text-xs outline-none focus:border-accent"
+           />
+         </div>
+@@ -374,7 +380,7 @@ function ToolsTab() {
+                 className="w-full flex items-center gap-1.5 px-2 py-1 text-xs text-text-muted hover:text-text transition-colors"
+               >
+                 <span className="text-[10px]">{expandedGroups.has(group) ? '\u25BC' : '\u25B6'}</span>
+-                <span className="font-semibold uppercase tracking-wider">{group}</span>
++                <span className="font-semibold uppercase tracking-wider">{(t.tools as Record<string, string>)[group] ?? group}</span>
+                 <span className="text-text-muted/50">({tools.length})</span>
+               </button>
+               {expandedGroups.has(group) && (
+@@ -403,14 +409,14 @@ function ToolsTab() {
+       <div className="flex-1 overflow-y-auto min-h-0 px-5 py-4">
+         {!selected ? (
+           <div className="flex items-center justify-center h-full text-text-muted text-sm">
+-            Select a tool from the left panel.
++            {t.dev.selectToolHint}
+           </div>
+         ) : loadingDetail ? (
+           <div className="flex justify-center py-10"><Spinner size="sm" /></div>
+         ) : detail ? (
+           <ToolExecutePanel detail={detail} result={result} onResult={setResult} />
+         ) : (
+-          <p className="text-sm text-text-muted">Failed to load tool details.</p>
++          <p className="text-sm text-text-muted">{t.dev.loadFailed}</p>
+         )}
+       </div>
+     </div>
+@@ -426,6 +432,7 @@ interface ToolExecutePanelProps {
+ }
+ 
+ function ToolExecutePanel({ detail, result, onResult }: ToolExecutePanelProps) {
++  const { t } = useTranslation()
+   const [inputs, setInputs] = useState<Record<string, string>>({})
+   const [executing, setExecuting] = useState(false)
+ 
+@@ -488,19 +495,19 @@ function ToolExecutePanel({ detail, result, onResult }: ToolExecutePanelProps) {
+       <div>
+         <h2 className="text-base font-semibold text-text">{detail.name}</h2>
+         {detail.group && <span className="text-xs text-text-muted uppercase tracking-wider">{detail.group}</span>}
+-        <p className="text-sm text-text-muted mt-1">{detail.description}</p>
++        <p className="text-sm text-text-muted mt-1">{(t.toolDescriptions as Record<string, string>)[detail.name] ?? detail.description}</p>
+       </div>
+ 
+       {/* Input form */}
+       {properties.length > 0 && (
+         <div className="space-y-3">
+-          <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">Input</h3>
++          <h3 className="text-xs font-semibold text-text-muted uppercase tracking-wider">{t.dev.input}</h3>
+           {properties.map((prop) => (
+             <div key={prop.key}>
+               <label className="flex items-center gap-1.5 text-[13px] text-text mb-1">
+                 <span className="font-mono">{prop.key}</span>
+                 <span className="text-[10px] text-text-muted/60">{prop.type}</span>
+-                {prop.required && <span className="text-[10px] text-accent/70">required</span>}
++                {prop.required && <span className="text-[10px] text-accent/70">{t.dev.required}</span>}
+               </label>
+               {prop.type === 'boolean' ? (
+                 <select
+@@ -517,12 +524,12 @@ function ToolExecutePanel({ detail, result, onResult }: ToolExecutePanelProps) {
+                   type={prop.type === 'number' || prop.type === 'integer' ? 'number' : 'text'}
+                   value={inputs[prop.key] ?? ''}
+                   onChange={(e) => setInputs((prev) => ({ ...prev, [prop.key]: e.target.value }))}
+-                  placeholder={prop.description || prop.key}
++                  placeholder={((t.toolDescriptions as Record<string, string>)[prop.description] ?? prop.description) || prop.key}
+                   className="w-full px-2.5 py-1.5 bg-bg text-text border border-border rounded-md text-xs font-mono outline-none focus:border-accent"
+                 />
+               )}
+               {prop.description && (
+-                <p className="text-[11px] text-text-muted/60 mt-0.5">{prop.description}</p>
++                <p className="text-[11px] text-text-muted/60 mt-0.5">{(t.toolDescriptions as Record<string, string>)[prop.description] ?? prop.description}</p>
+               )}
+             </div>
+           ))}
+@@ -535,7 +542,7 @@ function ToolExecutePanel({ detail, result, onResult }: ToolExecutePanelProps) {
+         disabled={executing}
+         className="btn-primary-sm"
+       >
+-        {executing ? 'Executing...' : 'Execute'}
++        {executing ? t.dev.executing : t.dev.execute}
+       </button>
+ 
+       {/* Result */}
+@@ -543,7 +550,7 @@ function ToolExecutePanel({ detail, result, onResult }: ToolExecutePanelProps) {
+         <div className="mt-4">
+           <div className="flex items-center gap-2 mb-2">
+             <span className={`text-xs font-semibold ${result.data.isError ? 'text-red-400' : 'text-green-400'}`}>
+-              {result.data.isError ? 'ERROR' : 'OK'}
++              {result.data.isError ? t.dev.resultError : t.dev.resultOk}
+             </span>
+             <span className="text-xs text-text-muted">{result.durationMs}ms</span>
+           </div>
+diff --git a/ui/src/pages/EventsPage.tsx b/ui/src/pages/EventsPage.tsx
+index 6957fba..f2c9c7b 100644
+--- a/ui/src/pages/EventsPage.tsx
++++ b/ui/src/pages/EventsPage.tsx
+@@ -3,6 +3,7 @@ import { api, type EventLogEntry, type CronJob, type CronSchedule } from '../api
+ import { useSSE } from '../hooks/useSSE'
+ import { Toggle } from '../components/Toggle'
+ import { PageHeader } from '../components/PageHeader'
++import { useTranslation, type Translations } from '../i18n'
+ 
+ // ==================== Helpers ====================
+ 
+@@ -22,15 +23,14 @@ function timeAgo(ts: number | null): string {
+   return `${Math.floor(diff / 86_400_000)}d ago`
+ }
+ 
+-function scheduleLabel(s: CronSchedule): string {
++function scheduleLabel(s: CronSchedule, eventsT: Translations['events']): string {
+   switch (s.kind) {
+     case 'at': return `at ${s.at}`
+-    case 'every': return `every ${s.every}`
++    case 'every': return `${eventsT.every} ${s.every}`
+     case 'cron': return `cron: ${s.cron}`
+   }
+ }
+ 
+-// Map event types to color classes
+ function eventTypeColor(type: string): string {
+   if (type.startsWith('heartbeat.')) return 'text-purple'
+   if (type.startsWith('cron.')) return 'text-accent'
+@@ -43,6 +43,7 @@ function eventTypeColor(type: string): string {
+ const PAGE_SIZE = 100
+ 
+ function EventLogSection() {
++  const { t } = useTranslation()
+   const [entries, setEntries] = useState<EventLogEntry[]>([])
+   const [typeFilter, setTypeFilter] = useState('')
+   const [paused, setPaused] = useState(false)
+@@ -53,15 +54,10 @@ function EventLogSection() {
+   const [types, setTypes] = useState<string[]>([])
+   const containerRef = useRef<HTMLDivElement>(null)
+ 
+-  // Fetch a page from disk
+   const fetchPage = useCallback(async (p: number, type?: string) => {
+     setLoading(true)
+     try {
+-      const result = await api.events.query({
+-        page: p,
+-        pageSize: PAGE_SIZE,
+-        type: type || undefined,
+-      })
++      const result = await api.events.query({ page: p, pageSize: PAGE_SIZE, type: type || undefined })
+       setEntries(result.entries)
+       setPage(result.page)
+       setTotalPages(result.totalPages)
+@@ -73,10 +69,8 @@ function EventLogSection() {
+     }
+   }, [])
+ 
+-  // Initial load
+   useEffect(() => { fetchPage(1) }, [fetchPage])
+ 
+-  // Track all seen event types (persists across page changes)
+   useEffect(() => {
+     if (entries.length > 0) {
+       setTypes((prev) => {
+@@ -87,35 +81,27 @@ function EventLogSection() {
+     }
+   }, [entries])
+ 
+-  // SSE for real-time events — only affects page 1
+   useSSE({
+     url: '/api/events/stream',
+     onMessage: (entry: EventLogEntry) => {
+-      // Always track new types
+       setTypes((prev) => {
+         if (prev.includes(entry.type)) return prev
+         return [...prev, entry.type].sort()
+       })
+-      // Increment total
+       setTotal((prev) => prev + 1)
+-      // Only prepend to visible list when on page 1 and matching filter
+       if (page === 1) {
+         const matchesFilter = !typeFilter || entry.type === typeFilter
+-        if (matchesFilter) {
+-          setEntries((prev) => [entry, ...prev].slice(0, PAGE_SIZE))
+-        }
++        if (matchesFilter) setEntries((prev) => [entry, ...prev].slice(0, PAGE_SIZE))
+       }
+     },
+     enabled: !paused,
+   })
+ 
+-  // Type filter change → reset to page 1
+   const handleTypeChange = useCallback((type: string) => {
+     setTypeFilter(type)
+     fetchPage(1, type)
+   }, [fetchPage])
+ 
+-  // Page navigation
+   const goToPage = useCallback((p: number) => {
+     fetchPage(p, typeFilter || undefined)
+     containerRef.current?.scrollTo(0, 0)
+@@ -130,94 +116,59 @@ function EventLogSection() {
+           onChange={(e) => handleTypeChange(e.target.value)}
+           className="bg-bg-tertiary text-text text-sm rounded-md border border-border px-2 py-1.5 outline-none focus:border-accent"
+         >
+-          <option value="">All types</option>
+-          {types.map((t) => (
+-            <option key={t} value={t}>{t}</option>
+-          ))}
++          <option value="">{t.events.allTypes}</option>
++          {types.map((ty) => <option key={ty} value={ty}>{ty}</option>)}
+         </select>
+ 
+         <button
+           onClick={() => setPaused(!paused)}
+           className={`text-xs px-3 py-1.5 rounded-md border transition-colors ${
+-            paused
+-              ? 'border-notification-border text-notification-border hover:bg-notification-bg'
+-              : 'border-border text-text-muted hover:bg-bg-tertiary'
++            paused ? 'border-notification-border text-notification-border hover:bg-notification-bg' : 'border-border text-text-muted hover:bg-bg-tertiary'
+           }`}
+         >
+-          {paused ? '▶ Resume' : '⏸ Pause'}
++          {paused ? `▶ ${t.events.resume}` : `⏸ ${t.events.pause}`}
+         </button>
+ 
+         <span className="text-xs text-text-muted ml-auto">
+           {total > 0
+-            ? `Page ${page} of ${totalPages} · ${total} events`
+-            : '0 events'
++            ? `Page ${page} of ${totalPages} · ${total} ${t.events.events}`
++            : `0 ${t.events.events}`
+           }
+-          {typeFilter && ' (filtered)'}
++          {typeFilter && ` ${t.events.filtered}`}
+         </span>
+       </div>
+ 
+-      {/* Event list — fills remaining space */}
+-      <div
+-        ref={containerRef}
+-        className="flex-1 min-h-0 bg-bg rounded-lg border border-border overflow-y-auto font-mono text-xs"
+-      >
++      {/* Event list */}
++      <div ref={containerRef} className="flex-1 min-h-0 bg-bg rounded-lg border border-border overflow-y-auto font-mono text-xs">
+         {loading && entries.length === 0 ? (
+-          <div className="px-4 py-8 text-center text-text-muted">Loading...</div>
++          <div className="px-4 py-8 text-center text-text-muted">{t.events.loading}</div>
+         ) : entries.length === 0 ? (
+-          <div className="px-4 py-8 text-center text-text-muted">No events yet</div>
++          <div className="px-4 py-8 text-center text-text-muted">{t.events.noEvents}</div>
+         ) : (
+           <table className="w-full">
+             <thead className="sticky top-0 bg-bg-secondary">
+               <tr className="text-text-muted text-left">
+                 <th className="px-3 py-2 w-12">#</th>
+-                <th className="px-3 py-2 w-36">Time</th>
+-                <th className="px-3 py-2 w-40">Type</th>
+-                <th className="px-3 py-2">Payload</th>
++                <th className="px-3 py-2 w-36">{t.agentStatus.time}</th>
++                <th className="px-3 py-2 w-40">{t.events.type}</th>
++                <th className="px-3 py-2">{t.events.payload}</th>
+               </tr>
+             </thead>
+             <tbody>
+-              {entries.map((entry) => (
+-                <EventRow key={entry.seq} entry={entry} />
+-              ))}
++              {entries.map((entry) => <EventRow key={entry.seq} entry={entry} />)}
+             </tbody>
+           </table>
+         )}
+       </div>
+ 
+-      {/* Pagination controls */}
++      {/* Pagination */}
+       {totalPages > 1 && (
+         <div className="flex items-center justify-center gap-2 shrink-0">
+-          <button
+-            onClick={() => goToPage(1)}
+-            disabled={page <= 1 || loading}
+-            className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+-          >
+-            ««
+-          </button>
+-          <button
+-            onClick={() => goToPage(page - 1)}
+-            disabled={page <= 1 || loading}
+-            className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+-          >
+-            «
+-          </button>
+-          <span className="text-xs text-text-muted px-2">
+-            {page} / {totalPages}
+-          </span>
+-          <button
+-            onClick={() => goToPage(page + 1)}
+-            disabled={page >= totalPages || loading}
+-            className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+-          >
+-            »
+-          </button>
+-          <button
+-            onClick={() => goToPage(totalPages)}
+-            disabled={page >= totalPages || loading}
+-            className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+-          >
+-            »»
+-          </button>
++          <button onClick={() => goToPage(1)} disabled={page <= 1 || loading} className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed">««</button>
++          <button onClick={() => goToPage(page - 1)} disabled={page <= 1 || loading} className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed">«</button>
++          <span className="text-xs text-text-muted px-2">{page} / {totalPages}</span>
++          <button onClick={() => goToPage(page + 1)} disabled={page >= totalPages || loading} className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed">»</button>
++          <button onClick={() => goToPage(totalPages)} disabled={page >= totalPages || loading} className="text-xs px-2 py-1 rounded border border-border text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors disabled:opacity-30 disabled:cursor-not-allowed">»»</button>
+         </div>
+       )}
+     </div>
+@@ -240,9 +191,7 @@ function EventRow({ entry }: { entry: EventLogEntry }) {
+         <td className={`px-3 py-1.5 ${eventTypeColor(entry.type)}`}>{entry.type}</td>
+         <td className="px-3 py-1.5 text-text-muted truncate">
+           {isLong ? payloadStr.slice(0, 120) + '...' : payloadStr}
+-          {isLong && (
+-            <span className="ml-1 text-accent">{expanded ? '▾' : '▸'}</span>
+-          )}
++          {isLong && <span className="ml-1 text-accent">{expanded ? '▾' : '▸'}</span>}
+         </td>
+       </tr>
+       {expanded && (
+@@ -261,9 +210,11 @@ function EventRow({ entry }: { entry: EventLogEntry }) {
+ // ==================== Cron Section ====================
+ 
+ function CronSection() {
++  const { t } = useTranslation()
+   const [jobs, setJobs] = useState<CronJob[]>([])
+   const [loading, setLoading] = useState(true)
+   const [showAdd, setShowAdd] = useState(false)
++  const [error, setError] = useState<string | null>(null)
+ 
+   const loadJobs = useCallback(async () => {
+     try {
+@@ -277,16 +228,12 @@ function CronSection() {
+   }, [])
+ 
+   useEffect(() => { loadJobs() }, [loadJobs])
+-
+-  // Refresh periodically to update next-run times
+   useEffect(() => {
+     const id = setInterval(loadJobs, 15_000)
+     return () => clearInterval(id)
+   }, [loadJobs])
+ 
+-  const [error, setError] = useState<string | null>(null)
+-
+-  const showError = (msg: string) => {
++  const showErrorMsg = (msg: string) => {
+     setError(msg)
+     setTimeout(() => setError(null), 3000)
+   }
+@@ -295,66 +242,38 @@ function CronSection() {
+     try {
+       await api.cron.update(job.id, { enabled: !job.enabled })
+       await loadJobs()
+-    } catch {
+-      showError('Failed to toggle job')
+-    }
++    } catch { showErrorMsg(t.events.toggleFailed) }
+   }
+ 
+   const handleRunNow = async (job: CronJob) => {
+-    try {
+-      await api.cron.runNow(job.id)
+-      await loadJobs()
+-    } catch {
+-      showError('Failed to run job')
+-    }
++    try { await api.cron.runNow(job.id); await loadJobs() } catch { showErrorMsg(t.events.runFailed) }
+   }
+ 
+   const handleDelete = async (job: CronJob) => {
+     if (job.name === '__heartbeat__') return
+-    try {
+-      await api.cron.remove(job.id)
+-      await loadJobs()
+-    } catch {
+-      showError('Failed to delete job')
+-    }
++    try { await api.cron.remove(job.id); await loadJobs() } catch { showErrorMsg(t.events.deleteFailed) }
+   }
+ 
+-  if (loading) {
+-    return <div className="text-text-muted text-sm py-4">Loading cron jobs...</div>
+-  }
++  if (loading) return <div className="text-text-muted text-sm py-4">{t.events.loading}</div>
+ 
+   return (
+     <div className="flex flex-col gap-3">
+       {error && <div className="text-xs text-red">{error}</div>}
+       <div className="flex items-center justify-between">
+-        <span className="text-xs text-text-muted">{jobs.length} jobs</span>
+-        <button
+-          onClick={() => setShowAdd(true)}
+-          className="btn-secondary-sm"
+-        >
+-          + Add Job
+-        </button>
++        <span className="text-xs text-text-muted">{jobs.length} {t.events.jobs}</span>
++        <button onClick={() => setShowAdd(true)} className="btn-secondary-sm">+ {t.events.addJob}</button>
+       </div>
+ 
+       {showAdd && (
+-        <AddCronJobForm
+-          onClose={() => setShowAdd(false)}
+-          onCreated={() => { setShowAdd(false); loadJobs() }}
+-        />
++        <AddCronJobForm onClose={() => setShowAdd(false)} onCreated={() => { setShowAdd(false); loadJobs() }} />
+       )}
+ 
+       {jobs.length === 0 ? (
+-        <div className="text-text-muted text-sm text-center py-6">No cron jobs</div>
++        <div className="text-text-muted text-sm text-center py-6">{t.events.noCronJobs}</div>
+       ) : (
+         <div className="space-y-2">
+           {jobs.map((job) => (
+-            <CronJobCard
+-              key={job.id}
+-              job={job}
+-              onToggle={() => handleToggle(job)}
+-              onRunNow={() => handleRunNow(job)}
+-              onDelete={() => handleDelete(job)}
+-            />
++            <CronJobCard key={job.id} job={job} onToggle={() => handleToggle(job)} onRunNow={() => handleRunNow(job)} onDelete={() => handleDelete(job)} />
+           ))}
+         </div>
+       )}
+@@ -362,22 +281,15 @@ function CronSection() {
+   )
+ }
+ 
+-function CronJobCard({ job, onToggle, onRunNow, onDelete }: {
+-  job: CronJob
+-  onToggle: () => void
+-  onRunNow: () => void
+-  onDelete: () => void
+-}) {
++function CronJobCard({ job, onToggle, onRunNow, onDelete }: { job: CronJob; onToggle: () => void; onRunNow: () => void; onDelete: () => void }) {
++  const { t } = useTranslation()
+   const [expanded, setExpanded] = useState(false)
+   const isHeartbeat = job.name === '__heartbeat__'
+ 
+   return (
+     <div className={`rounded-lg border ${job.enabled ? 'border-border' : 'border-border/50 opacity-60'} bg-bg`}>
+       <div className="flex items-center gap-3 px-4 py-3">
+-        {/* Toggle */}
+-        <Toggle size="sm" checked={job.enabled} onChange={() => onToggle()} />
+-
+-        {/* Info */}
++        <Toggle size="sm" checked={job.enabled} onChange={onToggle} />
+         <div className="flex-1 min-w-0">
+           <div className="flex items-center gap-2">
+             <span className={`text-sm font-medium ${isHeartbeat ? 'text-purple' : 'text-text'}`}>
+@@ -385,57 +297,31 @@ function CronJobCard({ job, onToggle, onRunNow, onDelete }: {
+             </span>
+             <span className="text-xs text-text-muted">{job.id}</span>
+             {job.state.lastStatus === 'error' && (
+-              <span className="text-xs text-red">
+-                {job.state.consecutiveErrors}x err
+-              </span>
++              <span className="text-xs text-red">{job.state.consecutiveErrors}x err</span>
+             )}
+           </div>
+           <div className="text-xs text-text-muted mt-0.5">
+-            {scheduleLabel(job.schedule)}
+-            {job.state.nextRunAtMs && (
+-              <span className="ml-2">• next: {formatDateTime(job.state.nextRunAtMs)}</span>
+-            )}
++            {scheduleLabel(job.schedule, t.events)}
++            {job.state.nextRunAtMs && <span className="ml-2">· {t.events.next}: {formatDateTime(job.state.nextRunAtMs)}</span>}
+           </div>
+         </div>
+-
+-        {/* Actions */}
+         <div className="flex items-center gap-1.5">
+-          <button
+-            onClick={onRunNow}
+-            title="Run now"
+-            className="p-1.5 rounded text-text-muted hover:text-accent hover:bg-bg-tertiary transition-colors text-xs"
+-          >
+-            ▶
+-          </button>
+-          <button
+-            onClick={() => setExpanded(!expanded)}
+-            title="Details"
+-            className="p-1.5 rounded text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors text-xs"
+-          >
+-            {expanded ? '▾' : '▸'}
+-          </button>
+-          {!isHeartbeat && (
+-            <button
+-              onClick={onDelete}
+-              title="Delete"
+-              className="p-1.5 rounded text-text-muted hover:text-red hover:bg-bg-tertiary transition-colors text-xs"
+-            >
+-              ✕
+-            </button>
+-          )}
++          <button onClick={onRunNow} title={t.events.runNow} className="p-1.5 rounded text-text-muted hover:text-accent hover:bg-bg-tertiary transition-colors text-xs">▶</button>
++          <button onClick={() => setExpanded(!expanded)} title="Details" className="p-1.5 rounded text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors text-xs">{expanded ? '▾' : '▸'}</button>
++          {!isHeartbeat && <button onClick={onDelete} title={t.events.delete} className="p-1.5 rounded text-text-muted hover:text-red hover:bg-bg-tertiary transition-colors text-xs">✕</button>}
+         </div>
+       </div>
+ 
+       {expanded && (
+         <div className="border-t border-border/50 px-4 py-3 text-xs space-y-2">
+           <div>
+-            <span className="text-text-muted">Payload: </span>
++            <span className="text-text-muted">{t.events.payloadLabel}: </span>
+             <pre className="inline text-text whitespace-pre-wrap break-all">{job.payload}</pre>
+           </div>
+           <div className="flex gap-4 text-text-muted">
+-            <span>Last run: {job.state.lastRunAtMs ? `${timeAgo(job.state.lastRunAtMs)} (${formatDateTime(job.state.lastRunAtMs)})` : 'never'}</span>
+-            <span>Status: {job.state.lastStatus ?? 'n/a'}</span>
+-            <span>Created: {formatDateTime(job.createdAt)}</span>
++            <span>{t.events.lastRun}: {job.state.lastRunAtMs ? `${timeAgo(job.state.lastRunAtMs)} (${formatDateTime(job.state.lastRunAtMs)})` : t.events.never}</span>
++            <span>{t.events.status}: {job.state.lastStatus ?? 'n/a'}</span>
++            <span>{t.events.created}: {formatDateTime(job.createdAt)}</span>
+           </div>
+         </div>
+       )}
+@@ -444,6 +330,7 @@ function CronJobCard({ job, onToggle, onRunNow, onDelete }: {
+ }
+ 
+ function AddCronJobForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
++  const { t } = useTranslation()
+   const [name, setName] = useState('')
+   const [payload, setPayload] = useState('')
+   const [schedKind, setSchedKind] = useState<'every' | 'cron' | 'at'>('every')
+@@ -453,10 +340,7 @@ function AddCronJobForm({ onClose, onCreated }: { onClose: () => void; onCreated
+ 
+   const handleSubmit = async (e: React.FormEvent) => {
+     e.preventDefault()
+-    if (!name.trim() || !payload.trim()) {
+-      setError('Name and payload are required')
+-      return
+-    }
++    if (!name.trim() || !payload.trim()) { setError('Name and payload are required'); return }
+ 
+     let schedule: CronSchedule
+     if (schedKind === 'every') schedule = { kind: 'every', every: schedValue }
+@@ -469,7 +353,7 @@ function AddCronJobForm({ onClose, onCreated }: { onClose: () => void; onCreated
+       await api.cron.add({ name: name.trim(), payload: payload.trim(), schedule })
+       onCreated()
+     } catch (err) {
+-      setError(err instanceof Error ? err.message : 'Create failed')
++      setError(err instanceof Error ? err.message : t.events.createFailed)
+     } finally {
+       setSaving(false)
+     }
+@@ -478,69 +362,27 @@ function AddCronJobForm({ onClose, onCreated }: { onClose: () => void; onCreated
+   return (
+     <form onSubmit={handleSubmit} className="bg-bg rounded-lg border border-accent/30 p-4 space-y-3">
+       <div className="flex items-center justify-between">
+-        <span className="text-sm font-medium text-text">New Cron Job</span>
++        <span className="text-sm font-medium text-text">{t.events.newCronJob}</span>
+         <button type="button" onClick={onClose} className="text-text-muted hover:text-text text-xs">✕</button>
+       </div>
+ 
+-      <input
+-        type="text"
+-        placeholder="Job name"
+-        value={name}
+-        onChange={(e) => setName(e.target.value)}
+-        className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-sm text-text outline-none focus:border-accent"
+-      />
+-
+-      <textarea
+-        placeholder="Payload / instruction text"
+-        value={payload}
+-        onChange={(e) => setPayload(e.target.value)}
+-        rows={2}
+-        className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-sm text-text outline-none focus:border-accent resize-none"
+-      />
++      <input type="text" placeholder={t.events.jobName} value={name} onChange={(e) => setName(e.target.value)} className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-sm text-text outline-none focus:border-accent" />
++      <textarea placeholder={t.events.payloadLabel} value={payload} onChange={(e) => setPayload(e.target.value)} rows={2} className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-sm text-text outline-none focus:border-accent resize-none" />
+ 
+       <div className="flex gap-2">
+-        <select
+-          value={schedKind}
+-          onChange={(e) => {
+-            const k = e.target.value as 'every' | 'cron' | 'at'
+-            setSchedKind(k)
+-            if (k === 'every') setSchedValue('1h')
+-            else if (k === 'cron') setSchedValue('0 9 * * 1-5')
+-            else setSchedValue(new Date(Date.now() + 3600_000).toISOString())
+-          }}
+-          className="bg-bg-tertiary border border-border rounded-md px-2 py-2 text-sm text-text outline-none focus:border-accent"
+-        >
+-          <option value="every">Every</option>
+-          <option value="cron">Cron</option>
+-          <option value="at">At (one-shot)</option>
++        <select value={schedKind} onChange={(e) => { const k = e.target.value as 'every' | 'cron' | 'at'; setSchedKind(k); if (k === 'every') setSchedValue('1h'); else if (k === 'cron') setSchedValue('0 9 * * 1-5'); else setSchedValue(new Date(Date.now() + 3600_000).toISOString()) }} className="bg-bg-tertiary border border-border rounded-md px-2 py-2 text-sm text-text outline-none focus:border-accent">
++          <option value="every">{t.events.every}</option>
++          <option value="cron">{t.events.cron}</option>
++          <option value="at">{t.events.at}</option>
+         </select>
+-
+-        <input
+-          type="text"
+-          value={schedValue}
+-          onChange={(e) => setSchedValue(e.target.value)}
+-          placeholder={schedKind === 'every' ? '1h' : schedKind === 'cron' ? '0 9 * * 1-5' : 'ISO timestamp'}
+-          className="flex-1 bg-bg-tertiary border border-border rounded-md px-3 py-2 text-sm text-text outline-none focus:border-accent font-mono"
+-        />
++        <input type="text" value={schedValue} onChange={(e) => setSchedValue(e.target.value)} placeholder={schedKind === 'every' ? '1h' : schedKind === 'cron' ? '0 9 * * 1-5' : 'ISO timestamp'} className="flex-1 bg-bg-tertiary border border-border rounded-md px-3 py-2 text-sm text-text outline-none focus:border-accent font-mono" />
+       </div>
+ 
+       {error && <div className="text-xs text-red">{error}</div>}
+ 
+       <div className="flex justify-end gap-2">
+-        <button
+-          type="button"
+-          onClick={onClose}
+-          className="px-3 py-1.5 text-sm rounded-md text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors"
+-        >
+-          Cancel
+-        </button>
+-        <button
+-          type="submit"
+-          disabled={saving}
+-          className="btn-primary-sm"
+-        >
+-          {saving ? 'Creating...' : 'Create'}
+-        </button>
++        <button type="button" onClick={onClose} className="px-3 py-1.5 text-sm rounded-md text-text-muted hover:text-text hover:bg-bg-tertiary transition-colors">{t.events.cancel}</button>
++        <button type="submit" disabled={saving} className="btn-primary-sm">{saving ? t.events.creating : t.events.create}</button>
+       </div>
+     </form>
+   )
+@@ -551,39 +393,25 @@ function AddCronJobForm({ onClose, onCreated }: { onClose: () => void; onCreated
+ type Tab = 'events' | 'cron'
+ 
+ export function EventsPage() {
++  const { t } = useTranslation()
+   const [tab, setTab] = useState<Tab>('events')
+ 
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+       <PageHeader
+-        title="Events"
++        title={t.events.title}
+         right={
+           <div className="flex gap-1 bg-bg-secondary rounded-lg p-1">
+-            <button
+-              onClick={() => setTab('events')}
+-              className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
+-                tab === 'events'
+-                  ? 'bg-bg-tertiary text-text'
+-                  : 'text-text-muted hover:text-text'
+-              }`}
+-            >
+-              Event Log
++            <button onClick={() => setTab('events')} className={`px-4 py-1.5 text-sm rounded-md transition-colors ${tab === 'events' ? 'bg-bg-tertiary text-text' : 'text-text-muted hover:text-text'}`}>
++              {t.events.eventLog}
+             </button>
+-            <button
+-              onClick={() => setTab('cron')}
+-              className={`px-4 py-1.5 text-sm rounded-md transition-colors ${
+-                tab === 'cron'
+-                  ? 'bg-bg-tertiary text-text'
+-                  : 'text-text-muted hover:text-text'
+-              }`}
+-            >
+-              Cron Jobs
++            <button onClick={() => setTab('cron')} className={`px-4 py-1.5 text-sm rounded-md transition-colors ${tab === 'cron' ? 'bg-bg-tertiary text-text' : 'text-text-muted hover:text-text'}`}>
++              {t.events.cronJobs}
+             </button>
+           </div>
+         }
+       />
+ 
+-      {/* Content area */}
+       <div className="flex-1 flex flex-col min-h-0 px-4 md:px-6 py-5">
+         <div className="flex-1 min-h-0">
+           {tab === 'events' ? <EventLogSection /> : <CronSection />}
+diff --git a/ui/src/pages/HeartbeatPage.tsx b/ui/src/pages/HeartbeatPage.tsx
+index f4db2d1..0559e9e 100644
+--- a/ui/src/pages/HeartbeatPage.tsx
++++ b/ui/src/pages/HeartbeatPage.tsx
+@@ -5,6 +5,7 @@ import { SaveIndicator } from '../components/SaveIndicator'
+ import { ConfigSection, Section, Field, inputClass } from '../components/form'
+ import { useAutoSave } from '../hooks/useAutoSave'
+ import { PageHeader } from '../components/PageHeader'
++import { useTranslation } from '../i18n'
+ 
+ // ==================== Helpers ====================
+ 
+@@ -25,6 +26,7 @@ function eventTypeColor(type: string): string {
+ // ==================== Status Bar ====================
+ 
+ function StatusBar() {
++  const { t } = useTranslation()
+   const [enabled, setEnabled] = useState<boolean | null>(null)
+   const [triggering, setTriggering] = useState(false)
+   const [feedback, setFeedback] = useState<string | null>(null)
+@@ -39,7 +41,7 @@ function StatusBar() {
+       const result = await api.heartbeat.setEnabled(v)
+       setEnabled(result.enabled)
+     } catch {
+-      setError('Failed to toggle heartbeat')
++      setError(t.heartbeat.toggleFailed)
+       setTimeout(() => setError(null), 3000)
+     }
+   }
+@@ -49,7 +51,7 @@ function StatusBar() {
+     setFeedback(null)
+     try {
+       await api.heartbeat.trigger()
+-      setFeedback('Heartbeat triggered!')
++      setFeedback(t.heartbeat.triggered)
+       setTimeout(() => setFeedback(null), 3000)
+     } catch (err) {
+       setFeedback(err instanceof Error ? err.message : 'Trigger failed')
+@@ -65,10 +67,8 @@ function StatusBar() {
+         <div className="flex items-center gap-3">
+           <span className="text-lg">💓</span>
+           <div>
+-            <div className="text-sm font-medium text-text">Heartbeat</div>
+-            <div className="text-xs text-text-muted">
+-              Periodic self-check and autonomous thinking
+-            </div>
++            <div className="text-sm font-medium text-text">{t.heartbeat.heartbeat}</div>
++            <div className="text-xs text-text-muted">{t.heartbeat.heartbeatDesc}</div>
+           </div>
+         </div>
+ 
+@@ -86,7 +86,7 @@ function StatusBar() {
+             disabled={triggering}
+             className="btn-secondary-sm"
+           >
+-            {triggering ? 'Triggering...' : 'Trigger Now'}
++            {triggering ? t.heartbeat.triggering : t.heartbeat.triggerNow}
+           </button>
+ 
+           {enabled !== null && (
+@@ -101,6 +101,7 @@ function StatusBar() {
+ // ==================== Config Form ====================
+ 
+ function HeartbeatConfigForm({ config }: { config: AppConfig }) {
++  const { t } = useTranslation()
+   const [every, setEvery] = useState(config.heartbeat?.every || '30m')
+   const [ahEnabled, setAhEnabled] = useState(config.heartbeat?.activeHours != null)
+   const [ahStart, setAhStart] = useState(config.heartbeat?.activeHours?.start || '09:00')
+@@ -120,8 +121,8 @@ function HeartbeatConfigForm({ config }: { config: AppConfig }) {
+   const { status, retry } = useAutoSave({ data: configData, save })
+ 
+   return (
+-    <ConfigSection title="Configuration" description="Set how often the heartbeat runs and optionally restrict it to active hours.">
+-      <Field label="Interval">
++    <ConfigSection title={t.heartbeat.configuration} description={t.heartbeat.configurationDesc}>
++      <Field label={t.heartbeat.interval}>
+         <input
+           className={inputClass}
+           value={every}
+@@ -132,13 +133,13 @@ function HeartbeatConfigForm({ config }: { config: AppConfig }) {
+ 
+       <div className="mb-3">
+         <div className="flex items-center justify-between mb-2">
+-          <label className="text-[13px] text-text font-medium">Active Hours</label>
++          <label className="text-[13px] text-text font-medium">{t.heartbeat.activeHours}</label>
+           <Toggle checked={ahEnabled} onChange={setAhEnabled} />
+         </div>
+         {ahEnabled && (
+           <div className="flex gap-2 items-end">
+             <div className="flex-1">
+-              <label className="block text-[11px] text-text-muted mb-1">Start</label>
++              <label className="block text-[11px] text-text-muted mb-1">{t.heartbeat.start}</label>
+               <input
+                 className={inputClass}
+                 value={ahStart}
+@@ -147,7 +148,7 @@ function HeartbeatConfigForm({ config }: { config: AppConfig }) {
+               />
+             </div>
+             <div className="flex-1">
+-              <label className="block text-[11px] text-text-muted mb-1">End</label>
++              <label className="block text-[11px] text-text-muted mb-1">{t.heartbeat.end}</label>
+               <input
+                 className={inputClass}
+                 value={ahEnd}
+@@ -156,7 +157,7 @@ function HeartbeatConfigForm({ config }: { config: AppConfig }) {
+               />
+             </div>
+             <div className="flex-1">
+-              <label className="block text-[11px] text-text-muted mb-1">Timezone</label>
++              <label className="block text-[11px] text-text-muted mb-1">{t.heartbeat.timezone}</label>
+               <select
+                 className={inputClass}
+                 value={ahTimezone}
+@@ -187,6 +188,7 @@ function HeartbeatConfigForm({ config }: { config: AppConfig }) {
+ // ==================== Prompt Editor ====================
+ 
+ function PromptEditor() {
++  const { t } = useTranslation()
+   const [content, setContent] = useState('')
+   const [filePath, setFilePath] = useState('')
+   const [loading, setLoading] = useState(true)
+@@ -201,7 +203,7 @@ function PromptEditor() {
+         setContent(content)
+         setFilePath(path)
+       })
+-      .catch(() => setError('Failed to load prompt file'))
++      .catch(() => setError(t.heartbeat.loadFailed))
+       .finally(() => setLoading(false))
+   }, [])
+ 
+@@ -215,16 +217,16 @@ function PromptEditor() {
+       setSaved(true)
+       setTimeout(() => setSaved(false), 2000)
+     } catch {
+-      setError('Failed to save')
++      setError(t.heartbeat.saveFailed)
+     } finally {
+       setSaving(false)
+     }
+   }
+ 
+   return (
+-    <ConfigSection title="Prompt File" description={filePath || 'The prompt template used for each heartbeat cycle.'}>
++    <ConfigSection title={t.heartbeat.promptFile} description={filePath || t.heartbeat.promptFileDesc}>
+       {loading ? (
+-        <div className="text-sm text-text-muted">Loading...</div>
++        <div className="text-sm text-text-muted">{t.heartbeat.loading}</div>
+       ) : (
+         <>
+           <textarea
+@@ -238,12 +240,12 @@ function PromptEditor() {
+               disabled={saving || !dirty}
+               className="btn-primary-sm"
+             >
+-              {saving ? 'Saving...' : 'Save'}
++              {saving ? t.heartbeat.saving : 'Save'}
+             </button>
+             {saved && (
+               <span className="inline-flex items-center gap-1.5 text-[11px]">
+                 <span className="w-1.5 h-1.5 rounded-full bg-green" />
+-                <span className="text-text-muted">Saved</span>
++                <span className="text-text-muted">{t.heartbeat.saved}</span>
+               </span>
+             )}
+             {error && (
+@@ -253,7 +255,7 @@ function PromptEditor() {
+               </span>
+             )}
+             {dirty && !saved && !error && (
+-              <span className="text-[11px] text-text-muted">Unsaved changes</span>
++              <span className="text-[11px] text-text-muted">{t.heartbeat.unsavedChanges}</span>
+             )}
+           </div>
+         </>
+@@ -265,6 +267,7 @@ function PromptEditor() {
+ // ==================== Recent Events ====================
+ 
+ function RecentEvents() {
++  const { t } = useTranslation()
+   const [entries, setEntries] = useState<EventLogEntry[]>([])
+   const [loading, setLoading] = useState(true)
+ 
+@@ -282,20 +285,20 @@ function RecentEvents() {
+   }, [])
+ 
+   return (
+-    <Section title="Recent Events">
++    <Section title={t.heartbeat.recentEvents}>
+       <div className="bg-bg rounded-lg border border-border overflow-x-auto font-mono text-xs">
+         {loading ? (
+-          <div className="px-4 py-6 text-center text-text-muted">Loading...</div>
++          <div className="px-4 py-6 text-center text-text-muted">{t.heartbeat.loading}</div>
+         ) : entries.length === 0 ? (
+-          <div className="px-4 py-6 text-center text-text-muted">No heartbeat events yet</div>
++          <div className="px-4 py-6 text-center text-text-muted">{t.heartbeat.noHeartbeatEvents}</div>
+         ) : (
+           <table className="w-full">
+             <thead className="bg-bg-secondary">
+               <tr className="text-text-muted text-left">
+                 <th className="px-3 py-2 w-12">#</th>
+-                <th className="px-3 py-2 w-36">Time</th>
+-                <th className="px-3 py-2 w-32">Type</th>
+-                <th className="px-3 py-2">Payload</th>
++                <th className="px-3 py-2 w-36">{t.agentStatus.time}</th>
++                <th className="px-3 py-2 w-32">{t.agentStatus.status}</th>
++                <th className="px-3 py-2">{t.agentStatus.input}</th>
+               </tr>
+             </thead>
+             <tbody>
+@@ -325,6 +328,7 @@ function RecentEvents() {
+ // ==================== Main Page ====================
+ 
+ export function HeartbeatPage() {
++  const { t } = useTranslation()
+   const [config, setConfig] = useState<AppConfig | null>(null)
+ 
+   useEffect(() => {
+@@ -333,7 +337,7 @@ export function HeartbeatPage() {
+ 
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+-      <PageHeader title="Heartbeat" />
++      <PageHeader title={t.heartbeat.title} />
+ 
+       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-5">
+         <div className="max-w-[880px] mx-auto space-y-6">
+diff --git a/ui/src/pages/MarketDataPage.tsx b/ui/src/pages/MarketDataPage.tsx
+index 808578b..7492cb7 100644
+--- a/ui/src/pages/MarketDataPage.tsx
++++ b/ui/src/pages/MarketDataPage.tsx
+@@ -5,6 +5,7 @@ import { ConfigSection, Field, inputClass } from '../components/form'
+ import { Toggle } from '../components/Toggle'
+ import { useConfigPage } from '../hooks/useConfigPage'
+ import { PageHeader } from '../components/PageHeader'
++import { useTranslation, type Translations } from '../i18n'
+ 
+ type MarketDataConfig = Record<string, unknown>
+ 
+@@ -18,13 +19,31 @@ const PROVIDER_OPTIONS: Record<string, string[]> = {
+ }
+ 
+ const ASSET_LABELS: Record<string, string> = {
++  equity: 'equity',
++  crypto: 'crypto',
++  currency: 'currency',
++  commodity: 'commodity',
++}
++
++const ASSET_LABELS_EN: Record<string, string> = {
+   equity: 'Equity',
+   crypto: 'Crypto',
+   currency: 'Currency',
+   commodity: 'Commodity',
+ }
+ 
+-const ALL_PROVIDERS = [
++const ALL_PROVIDERS_KEYS = [
++  { key: 'fmp', nameKey: 'fmp', descKey: 'fmpDesc', hintKey: 'fmpHint' },
++  { key: 'fred', nameKey: 'fred', descKey: 'fredDesc', hintKey: 'fredHint' },
++  { key: 'bls', nameKey: 'bls', descKey: 'blsDesc', hintKey: 'blsHint' },
++  { key: 'eia', nameKey: 'eia', descKey: 'eiaDesc', hintKey: 'eiaHint' },
++  { key: 'econdb', nameKey: 'econdb', descKey: 'econdbDesc', hintKey: 'econdbHint' },
++  { key: 'intrinio', nameKey: 'intrinio', descKey: 'intrinioDesc', hintKey: 'intrinioHint' },
++  { key: 'nasdaq', nameKey: 'nasdaq', descKey: 'nasdaqDesc', hintKey: 'nasdaqHint' },
++  { key: 'tradingeconomics', nameKey: 'tradingeconomics', descKey: 'tradingeconomicsDesc', hintKey: 'tradingeconomicsHint' },
++] as const
++
++const ALL_PROVIDERS_KEYS_EN = [
+   { key: 'fmp', name: 'FMP', desc: 'Equity, crypto, currency, ETF, index — fundamentals, calendars, discovery.', hint: 'financialmodelingprep.com' },
+   { key: 'fred', name: 'FRED', desc: 'Federal Reserve Economic Data — CPI, GDP, interest rates, macro indicators.', hint: 'Free — fredaccount.stlouisfed.org/apikeys' },
+   { key: 'bls', name: 'BLS', desc: 'Bureau of Labor Statistics — employment, payrolls, wages, CPI.', hint: 'Free — registrationapps.bls.gov/bls_registration' },
+@@ -41,10 +60,18 @@ function TestButton({
+   status,
+   disabled,
+   onClick,
++  testLabel,
++  testingLabel,
++  okLabel,
++  failLabel,
+ }: {
+   status: 'idle' | 'testing' | 'ok' | 'error'
+   disabled: boolean
+   onClick: () => void
++  testLabel: string
++  testingLabel: string
++  okLabel: string
++  failLabel: string
+ }) {
+   return (
+     <button
+@@ -58,7 +85,7 @@ function TestButton({
+             : 'border-border text-text-muted hover:bg-bg-tertiary hover:text-text'
+       }`}
+     >
+-      {status === 'testing' ? '...' : status === 'ok' ? 'OK' : status === 'error' ? 'Fail' : 'Test'}
++      {status === 'testing' ? testingLabel : status === 'ok' ? okLabel : status === 'error' ? failLabel : testLabel}
+     </button>
+   )
+ }
+@@ -66,6 +93,7 @@ function TestButton({
+ // ==================== Page ====================
+ 
+ export function MarketDataPage() {
++  const { t } = useTranslation()
+   const { config, status, loadError, updateConfig, updateConfigImmediate, retry } = useConfigPage<MarketDataConfig>({
+     section: 'marketData',
+     extract: (full: AppConfig) => (full as Record<string, unknown>).marketData as MarketDataConfig,
+@@ -76,9 +104,9 @@ export function MarketDataPage() {
+   if (!config) {
+     return (
+       <div className="flex flex-col flex-1 min-h-0">
+-        <PageHeader title="Market Data" description="Structured financial data — prices, fundamentals, macro indicators." />
++        <PageHeader title={t.marketData.title} description={t.marketData.titleDesc} />
+         <div className="flex-1 flex items-center justify-center">
+-          <p className="text-[13px] text-text-muted">Loading...</p>
++          <p className="text-[13px] text-text-muted">{t.marketData.loading}</p>
+         </div>
+       </div>
+     )
+@@ -107,8 +135,8 @@ export function MarketDataPage() {
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+       <PageHeader
+-        title="Market Data"
+-        description="Structured financial data — prices, fundamentals, macro indicators."
++        title={t.marketData.title}
++        description={t.marketData.titleDesc}
+         right={
+           <div className="flex items-center gap-3">
+             <SaveIndicator status={status} onRetry={retry} />
+@@ -156,17 +184,18 @@ function AssetProvidersSection({
+   providers: Record<string, string>
+   onProviderChange: (asset: string, provider: string) => void
+ }) {
++  const { t } = useTranslation()
+   return (
+     <ConfigSection
+-      title="Asset Providers"
+-      description="Select a data provider for each asset class. API keys are managed separately below."
++      title={t.marketData.assetProviders}
++      description={t.marketData.assetProvidersDesc}
+     >
+       <div className="space-y-3">
+         {Object.entries(PROVIDER_OPTIONS).map(([asset, options]) => {
+           const selectedProvider = providers[asset] || options[0]
+           return (
+             <div key={asset} className="flex items-center gap-3">
+-              <span className="text-[13px] text-text w-24 shrink-0 font-medium">{ASSET_LABELS[asset]}</span>
++              <span className="text-[13px] text-text w-24 shrink-0 font-medium">{(t.marketData as Record<string, string>)[ASSET_LABELS[asset]] ?? ASSET_LABELS_EN[asset]}</span>
+               <select
+                 className={`${inputClass} max-w-[180px]`}
+                 value={selectedProvider}
+@@ -175,7 +204,7 @@ function AssetProvidersSection({
+                 {options.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+               </select>
+               {selectedProvider === 'yfinance' && (
+-                <span className="text-[13px] text-text-muted/50 px-1">Free</span>
++                <span className="text-[13px] text-text-muted/50 px-1">{t.marketData.free}</span>
+               )}
+             </div>
+           )
+@@ -194,9 +223,10 @@ function ApiKeysSection({
+   providerKeys: Record<string, string>
+   onKeyChange: (keyName: string, value: string) => void
+ }) {
++  const { t } = useTranslation()
+   const [localKeys, setLocalKeys] = useState<Record<string, string>>(() => {
+     const init: Record<string, string> = {}
+-    for (const p of ALL_PROVIDERS) init[p.key] = providerKeys[p.key] || ''
++    for (const p of ALL_PROVIDERS_KEYS) init[p.key] = providerKeys[p.key] || ''
+     return init
+   })
+   const [testStatus, setTestStatus] = useState<Record<string, 'idle' | 'testing' | 'ok' | 'error'>>({})
+@@ -221,11 +251,14 @@ function ApiKeysSection({
+ 
+   return (
+     <ConfigSection
+-      title="API Keys"
+-      description="Manage credentials for data providers. Keys are used across all asset classes that route to the provider."
++      title={t.marketData.apiKeys}
++      description={t.marketData.assetProvidersDesc}
+     >
+       <div className="space-y-4">
+-        {ALL_PROVIDERS.map(({ key, name, desc, hint }) => {
++        {ALL_PROVIDERS_KEYS.map(({ key, nameKey, descKey, hintKey }) => {
++          const name = (t.marketData as Record<string, string>)[nameKey] ?? ALL_PROVIDERS_KEYS_EN.find(p => p.key === key)!.name
++          const desc = (t.marketData as Record<string, string>)[descKey] ?? ALL_PROVIDERS_KEYS_EN.find(p => p.key === key)!.desc
++          const hint = (t.marketData as Record<string, string>)[hintKey] ?? ALL_PROVIDERS_KEYS_EN.find(p => p.key === key)!.hint
+           const status = testStatus[key] || 'idle'
+           return (
+             <Field key={key} label={name} description={hint}>
+@@ -236,12 +269,16 @@ function ApiKeysSection({
+                   type="password"
+                   value={localKeys[key]}
+                   onChange={(e) => handleKeyChange(key, e.target.value)}
+-                  placeholder="Not configured"
++                  placeholder={t.marketData.notConfigured}
+                 />
+                 <TestButton
+                   status={status}
+                   disabled={!localKeys[key] || status === 'testing'}
+                   onClick={() => testProvider(key)}
++                  testLabel={t.marketData.test}
++                  testingLabel={t.marketData.testing}
++                  okLabel={t.marketData.connected}
++                  failLabel={t.marketData.failed}
+                 />
+               </div>
+             </Field>
+@@ -269,6 +306,7 @@ function AdvancedSection({
+   onApiUrlChange: (url: string) => void
+   onApiServerChange: (server: { enabled: boolean; port: number }) => void
+ }) {
++  const { t } = useTranslation()
+   const [expanded, setExpanded] = useState(false)
+ 
+   return (
+@@ -277,17 +315,17 @@ function AdvancedSection({
+         onClick={() => setExpanded(!expanded)}
+         className="flex items-center gap-2 cursor-pointer text-left mb-1"
+       >
+-        <h3 className="text-[14px] font-semibold text-text">Advanced</h3>
++        <h3 className="text-[14px] font-semibold text-text">{t.marketData.advanced}</h3>
+         <span className="text-[11px] text-text-muted/50">{expanded ? '\u25BC' : '\u25B6'}</span>
+       </button>
+       {!expanded && (
+-        <p className="text-[13px] text-text-muted/70">Data backend, embedded API server.</p>
++        <p className="text-[13px] text-text-muted/70">{t.marketData.dataBackendDesc}</p>
+       )}
+       {expanded && (
+         <div className="space-y-6 mt-4">
+           {/* Data Backend */}
+           <div>
+-            <p className="text-[13px] font-medium text-text mb-2">Data Backend</p>
++            <p className="text-[13px] font-medium text-text mb-2">{t.marketData.dataBackend}</p>
+             <div className="flex border border-border rounded-lg overflow-hidden w-fit mb-2">
+               {(['typebb-sdk', 'openbb-api'] as const).map((opt, i) => (
+                 <button
+@@ -301,23 +339,23 @@ function AdvancedSection({
+                       : 'text-text-muted hover:text-text'
+                   }`}
+                 >
+-                  {opt === 'typebb-sdk' ? 'Built-in Engine (TypeBB)' : 'External OpenBB API'}
++                  {opt === 'typebb-sdk' ? t.marketData.builtInEngine : t.marketData.externalApi}
+                 </button>
+               ))}
+             </div>
+             <p className="text-[12px] text-text-muted/70">
+               {backend === 'typebb-sdk'
+-                ? 'Uses the built-in TypeBB engine. No external process required.'
+-                : 'Connects to an external OpenBB-compatible HTTP endpoint.'}
++                ? t.marketData.builtInEngineDesc
++                : t.marketData.externalApiDesc}
+             </p>
+             {backend === 'openbb-api' && (
+               <div className="mt-3">
+-                <Field label="API URL">
++                <Field label={t.marketData.apiUrl}>
+                   <input
+                     className={inputClass}
+                     value={apiUrl}
+                     onChange={(e) => onApiUrlChange(e.target.value)}
+-                    placeholder="http://localhost:6900"
++                    placeholder={t.marketData.apiUrlPlaceholder}
+                   />
+                 </Field>
+               </div>
+@@ -326,13 +364,13 @@ function AdvancedSection({
+ 
+           {/* Embedded API Server */}
+           <div>
+-            <p className="text-[13px] font-medium text-text mb-2">Embedded API Server</p>
++            <p className="text-[13px] font-medium text-text mb-2">{t.marketData.embeddedApiServer}</p>
+             <p className="text-[12px] text-text-muted/70 mb-3">
+-              Expose an OpenBB-compatible HTTP API from Alice. Other services can connect to query market data.
++              {t.marketData.embeddedApiServerDesc}
+             </p>
+             <div className="flex items-center justify-between mb-3">
+               <div>
+-                <p className="text-[13px] text-text">Enable HTTP server</p>
++                <p className="text-[13px] text-text">{t.marketData.enableHttpServer}</p>
+                 <p className="text-[12px] text-text-muted/60 mt-0.5">
+                   Serves at <span className="font-mono text-[11px]">http://localhost:{apiServer.port}</span>
+                 </p>
+@@ -344,7 +382,7 @@ function AdvancedSection({
+               />
+             </div>
+             {apiServer.enabled && (
+-              <Field label="Port">
++              <Field label={t.connectors.port}>
+                 <input
+                   className={`${inputClass} w-28`}
+                   type="number"
+diff --git a/ui/src/pages/NewsPage.tsx b/ui/src/pages/NewsPage.tsx
+index f10094c..3cfc267 100644
+--- a/ui/src/pages/NewsPage.tsx
++++ b/ui/src/pages/NewsPage.tsx
+@@ -5,6 +5,7 @@ import { ConfigSection, Field, inputClass } from '../components/form'
+ import { Toggle } from '../components/Toggle'
+ import { useConfigPage } from '../hooks/useConfigPage'
+ import { PageHeader } from '../components/PageHeader'
++import { useTranslation } from '../i18n'
+ 
+ // ==================== Page ====================
+ 
+@@ -17,6 +18,7 @@ const DEFAULT_NEWS_CONFIG: NewsCollectorConfig = {
+ }
+ 
+ export function NewsPage() {
++  const { t } = useTranslation()
+   const { config, status, loadError, updateConfig, updateConfigImmediate, retry } = useConfigPage<NewsCollectorConfig>({
+     section: 'news',
+     extract: (full: AppConfig) => (full as Record<string, unknown>).news as NewsCollectorConfig,
+@@ -28,8 +30,8 @@ export function NewsPage() {
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+       <PageHeader
+-        title="News"
+-        description="RSS feed collection and article archive."
++        title={t.news.title}
++        description={t.news.titleDesc}
+         right={
+           <div className="flex items-center gap-3">
+             <SaveIndicator status={status} onRetry={retry} />
+@@ -42,11 +44,11 @@ export function NewsPage() {
+         <div className={`max-w-[880px] mx-auto ${!enabled ? 'opacity-40 pointer-events-none' : ''}`}>
+           {/* Collection Settings */}
+           <ConfigSection
+-            title="Collection Settings"
+-            description="Control how often articles are fetched and how long they are retained in the archive."
++            title={t.news.collectionSettings}
++            description={t.news.collectionSettingsDesc}
+           >
+             <div className="grid grid-cols-2 gap-4">
+-              <Field label="Fetch interval (min)">
++              <Field label={t.news.fetchInterval}>
+                 <input
+                   className={inputClass}
+                   type="number"
+@@ -55,7 +57,7 @@ export function NewsPage() {
+                   onChange={(e) => updateConfig({ intervalMinutes: Number(e.target.value) || 10 })}
+                 />
+               </Field>
+-              <Field label="Retention (days)">
++              <Field label={t.news.retention}>
+                 <input
+                   className={inputClass}
+                   type="number"
+@@ -73,7 +75,7 @@ export function NewsPage() {
+             onChange={(feeds) => updateConfigImmediate({ feeds })}
+           />
+         </div>
+-        {loadError && <p className="text-[13px] text-red mt-4 max-w-[880px] mx-auto">Failed to load configuration.</p>}
++        {loadError && <p className="text-[13px] text-red mt-4 max-w-[880px] mx-auto">{t.news.loadFailed}</p>}
+       </div>
+     </div>
+   )
+@@ -88,6 +90,7 @@ function FeedsSection({
+   feeds: NewsCollectorFeed[]
+   onChange: (feeds: NewsCollectorFeed[]) => void
+ }) {
++  const { t } = useTranslation()
+   const [newName, setNewName] = useState('')
+   const [newUrl, setNewUrl] = useState('')
+   const [newSource, setNewSource] = useState('')
+@@ -102,14 +105,15 @@ function FeedsSection({
+     setNewSource('')
+   }
+ 
++  const feedCount = feeds.length
++  const feedsDesc = feedCount > 0
++    ? t.news.rssFeedsDesc.replace('{count}', String(feedCount))
++    : t.news.rssFeedsEmpty
++
+   return (
+     <ConfigSection
+-      title="RSS Feeds"
+-      description={
+-        feeds.length > 0
+-          ? `${feeds.length} feed${feeds.length > 1 ? 's' : ''} configured. Articles are searchable via globNews, grepNews, and readNews tools.`
+-          : 'No feeds configured yet. Add feeds to start collecting articles.'
+-      }
++      title={t.news.rssFeeds}
++      description={feedsDesc}
+     >
+       {/* Existing feeds */}
+       {feeds.length > 0 && (
+@@ -127,7 +131,7 @@ function FeedsSection({
+               <button
+                 onClick={() => removeFeed(i)}
+                 className="shrink-0 text-text-muted hover:text-red transition-colors p-1"
+-                title="Remove feed"
++                title={t.news.removeFeed}
+               >
+                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                   <line x1="18" y1="6" x2="6" y2="18" />
+@@ -141,16 +145,16 @@ function FeedsSection({
+ 
+       {/* Add feed form */}
+       <div className="border border-border/40 rounded-lg p-4 space-y-3">
+-        <p className="text-[13px] font-medium text-text-muted">Add Feed</p>
++        <p className="text-[13px] font-medium text-text-muted">{t.news.addFeed}</p>
+         <div className="grid grid-cols-2 gap-3">
+-          <Field label="Name">
++          <Field label={t.news.name}>
+             <input className={inputClass} value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="e.g. CoinDesk" />
+           </Field>
+-          <Field label="Source Tag">
++          <Field label={t.news.source}>
+             <input className={inputClass} value={newSource} onChange={(e) => setNewSource(e.target.value)} placeholder="e.g. coindesk" />
+           </Field>
+         </div>
+-        <Field label="Feed URL">
++        <Field label={t.news.feedUrl}>
+           <input className={inputClass} value={newUrl} onChange={(e) => setNewUrl(e.target.value)} placeholder="https://example.com/rss.xml" />
+         </Field>
+         <button
+@@ -158,7 +162,7 @@ function FeedsSection({
+           disabled={!newName.trim() || !newUrl.trim() || !newSource.trim()}
+           className="btn-secondary"
+         >
+-          Add Feed
++          {t.news.addFeed}
+         </button>
+       </div>
+     </ConfigSection>
+diff --git a/ui/src/pages/PortfolioPage.tsx b/ui/src/pages/PortfolioPage.tsx
+index 847aa1a..be3bfbf 100644
+--- a/ui/src/pages/PortfolioPage.tsx
++++ b/ui/src/pages/PortfolioPage.tsx
+@@ -7,6 +7,7 @@ import { EmptyState } from '../components/StateViews'
+ import { EquityCurve } from '../components/EquityCurve'
+ import { SnapshotDetail } from '../components/SnapshotDetail'
+ import { Toggle } from '../components/Toggle'
++import { useTranslation } from '../i18n'
+ 
+ // ==================== Types ====================
+ 
+@@ -37,6 +38,7 @@ const EMPTY: PortfolioData = { equity: null, accounts: [] }
+ // ==================== Page ====================
+ 
+ export function PortfolioPage() {
++  const { t } = useTranslation()
+   const healthMap = useAccountHealth()
+   const [data, setData] = useState<PortfolioData>(EMPTY)
+   const [loading, setLoading] = useState(true)
+@@ -142,15 +144,15 @@ export function PortfolioPage() {
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+       <PageHeader
+-        title="Portfolio"
+-        description={<>Live portfolio overview across all trading accounts.{lastRefresh && <span className="ml-2 text-text-muted/50">Updated {lastRefresh.toLocaleTimeString()}</span>}</>}
++        title={t.portfolio.title}
++        description={<>{t.portfolio.titleDesc}{lastRefresh && <span className="ml-2 text-text-muted/50">{t.portfolio.lastRefresh} {lastRefresh.toLocaleTimeString()}</span>}</>}
+         right={
+           <button
+             onClick={refresh}
+             disabled={loading}
+             className="px-3 py-1.5 text-[13px] font-medium rounded-md border border-border hover:bg-bg-tertiary disabled:opacity-50 transition-colors"
+           >
+-            {loading ? 'Loading...' : 'Refresh'}
++            {loading ? t.portfolio.loading : t.portfolio.refresh}
+           </button>
+         }
+       />
+@@ -196,10 +198,10 @@ export function PortfolioPage() {
+ 
+           {/* Empty states */}
+           {data.accounts.length === 0 && !loading && (
+-            <EmptyState title="No trading accounts connected." description="Configure connections in the Trading page." />
++            <EmptyState title={t.portfolio.noTradingAccounts} description={t.portfolio.configureInTrading} />
+           )}
+           {data.accounts.length > 0 && allPositions.length === 0 && !loading && (
+-            <EmptyState title="No open positions." />
++            <EmptyState title={t.portfolio.noOpenPositions} />
+           )}
+ 
+           {allWalletLogs.length > 0 && (
+@@ -246,6 +248,7 @@ async function fetchPortfolioData(): Promise<PortfolioData> {
+ // ==================== Hero Metrics ====================
+ 
+ function HeroMetrics({ equity }: { equity: AggregatedEquity | null }) {
++  const { t } = useTranslation()
+   if (!equity) {
+     return (
+       <div className="border border-border rounded-lg bg-bg-secondary p-5 text-center">
+@@ -257,10 +260,10 @@ function HeroMetrics({ equity }: { equity: AggregatedEquity | null }) {
+   return (
+     <div className="border border-border rounded-lg bg-bg-secondary p-5">
+       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+-        <HeroItem label="Total Equity" value={fmt(equity.totalEquity)} />
+-        <HeroItem label="Cash" value={fmt(equity.totalCash)} />
+-        <HeroItem label="Unrealized PnL" value={fmtPnl(equity.totalUnrealizedPnL)} pnl={equity.totalUnrealizedPnL} />
+-        <HeroItem label="Realized PnL" value={fmtPnl(equity.totalRealizedPnL)} pnl={equity.totalRealizedPnL} />
++        <HeroItem label={t.portfolio.totalEquity} value={fmt(equity.totalEquity)} />
++        <HeroItem label={t.portfolio.cash} value={fmt(equity.totalCash)} />
++        <HeroItem label={t.portfolio.unrealizedPnl} value={fmtPnl(equity.totalUnrealizedPnL)} pnl={equity.totalUnrealizedPnL} />
++        <HeroItem label={t.portfolio.realizedPnl} value={fmtPnl(equity.totalRealizedPnL)} pnl={equity.totalRealizedPnL} />
+       </div>
+     </div>
+   )
+@@ -285,6 +288,7 @@ const HEALTH_DOT: Record<string, string> = {
+ }
+ 
+ function AccountStrip({ sources }: { sources: Array<{ id: string; label: string; provider: string; equity: number; unrealizedPnL: number; error?: string; health?: string; disabled?: boolean }> }) {
++  const { t } = useTranslation()
+   return (
+     <div className="flex flex-wrap gap-2">
+       {sources.map(s => {
+@@ -298,9 +302,9 @@ function AccountStrip({ sources }: { sources: Array<{ id: string; label: string;
+             <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+             <span className="text-text font-medium">{s.label}</span>
+             {isDisabled
+-              ? <span className="text-text-muted text-[11px]">Disabled</span>
++              ? <span className="text-text-muted text-[11px]">{t.portfolio.disabled}</span>
+               : isOffline
+-                ? <span className="text-red text-[11px]">Reconnecting...</span>
++                ? <span className="text-red text-[11px]">{t.portfolio.reconnecting}</span>
+                 : <>
+                     <span className="text-text-muted">{fmt(s.equity)}</span>
+                     {s.unrealizedPnL !== 0 && (
+@@ -356,6 +360,7 @@ function contractDisplay(p: Position): { name: string; tag?: string } {
+ }
+ 
+ function PositionsTable({ positions }: { positions: PositionWithAccount[] }) {
++  const { t } = useTranslation()
+   return (
+     <div>
+       <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wide mb-3">
+@@ -365,13 +370,13 @@ function PositionsTable({ positions }: { positions: PositionWithAccount[] }) {
+         <table className="w-full text-[13px]">
+           <thead>
+             <tr className="bg-bg-secondary text-text-muted text-left">
+-              <th className="px-3 py-2 font-medium">Symbol</th>
+-              <th className="px-3 py-2 font-medium text-right">Qty</th>
+-              <th className="px-3 py-2 font-medium text-right">Avg Cost</th>
+-              <th className="px-3 py-2 font-medium text-right">Current</th>
+-              <th className="px-3 py-2 font-medium text-right">Mkt Value</th>
+-              <th className="px-3 py-2 font-medium text-right">PnL</th>
+-              <th className="px-3 py-2 font-medium text-right">PnL %</th>
++              <th className="px-3 py-2 font-medium">{t.portfolio.symbol}</th>
++              <th className="px-3 py-2 font-medium text-right">{t.portfolio.qty}</th>
++              <th className="px-3 py-2 font-medium text-right">{t.portfolio.avgCost}</th>
++              <th className="px-3 py-2 font-medium text-right">{t.portfolio.current}</th>
++              <th className="px-3 py-2 font-medium text-right">{t.portfolio.mktValue}</th>
++              <th className="px-3 py-2 font-medium text-right">{t.portfolio.pnl}</th>
++              <th className="px-3 py-2 font-medium text-right">{t.portfolio.pnlPercent}</th>
+             </tr>
+           </thead>
+           <tbody>
+@@ -428,6 +433,7 @@ interface CommitWithAccount extends WalletCommitLog {
+ }
+ 
+ function TradeLog({ commits }: { commits: CommitWithAccount[] }) {
++  const { t } = useTranslation()
+   const sorted = [...commits]
+     .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+     .slice(0, 10)
+@@ -437,7 +443,7 @@ function TradeLog({ commits }: { commits: CommitWithAccount[] }) {
+   return (
+     <div>
+       <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wide mb-3">
+-        Recent Trades
++        {t.portfolio.recentTrades}
+       </h3>
+       <div className="space-y-2">
+         {sorted.map((commit) => {
+diff --git a/ui/src/pages/SettingsPage.tsx b/ui/src/pages/SettingsPage.tsx
+index f3f4386..cba1d7e 100644
+--- a/ui/src/pages/SettingsPage.tsx
++++ b/ui/src/pages/SettingsPage.tsx
+@@ -6,9 +6,16 @@ import { ConfigSection, Field, inputClass } from '../components/form'
+ import { useAutoSave } from '../hooks/useAutoSave'
+ import { PageHeader } from '../components/PageHeader'
+ import { PageLoading } from '../components/StateViews'
++import { useTranslation, type Locale } from '../i18n'
++
++const LANGUAGES: { value: Locale; label: string }[] = [
++  { value: 'en', label: 'English' },
++  { value: 'zh', label: '中文' },
++]
+ 
+ export function SettingsPage() {
+   const [config, setConfig] = useState<AppConfig | null>(null)
++  const { t, locale, setLocale } = useTranslation()
+ 
+   useEffect(() => {
+     api.config.load().then(setConfig).catch(() => {})
+@@ -16,22 +23,40 @@ export function SettingsPage() {
+ 
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+-      <PageHeader title="Settings" />
++      <PageHeader
++        title={t.settings.title}
++        right={
++          <div className="flex items-center gap-2">
++            <span className="text-sm text-text-muted">{t.settings.language}:</span>
++            <select
++              value={locale}
++              onChange={(e) => setLocale(e.target.value as Locale)}
++              className="bg-bg text-text border border-border rounded px-2 py-1 text-sm outline-none focus:border-accent cursor-pointer"
++            >
++              {LANGUAGES.map((lang) => (
++                <option key={lang.value} value={lang.value}>
++                  {lang.label}
++                </option>
++              ))}
++            </select>
++          </div>
++        }
++      />
+ 
+       {config ? (
+       <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6">
+           <div className="max-w-[880px] mx-auto">
+             {/* Agent */}
+-            <ConfigSection title="Agent" description="Controls file-system and tool permissions for the AI. Changes apply on the next request.">
++            <ConfigSection title={t.settings.agent} description={t.settings.agentDesc}>
+               <div className="flex items-center justify-between gap-4 py-1">
+                 <div className="flex-1">
+                   <span className="text-sm font-medium text-text">
+-                    Evolution Mode
++                    {t.settings.evolutionMode}
+                   </span>
+                   <p className="text-[12px] text-text-muted mt-0.5 leading-relaxed">
+                     {config.agent?.evolutionMode
+-                      ? 'Full project access — AI can modify source code'
+-                      : 'Sandbox mode — AI can only edit data/brain/'}
++                      ? t.settings.evolutionModeDesc.on
++                      : t.settings.evolutionModeDesc.off}
+                   </p>
+                 </div>
+                 <Toggle
+@@ -49,7 +74,7 @@ export function SettingsPage() {
+             </ConfigSection>
+ 
+             {/* Compaction */}
+-            <ConfigSection title="Compaction" description="Context window management. When conversation size approaches Max Context minus Max Output tokens, older messages are automatically summarized to free up space.">
++            <ConfigSection title={t.settings.compaction} description={t.settings.compactionDesc}>
+               <CompactionForm config={config} />
+             </ConfigSection>
+           </div>
+@@ -66,6 +91,7 @@ export function SettingsPage() {
+ function CompactionForm({ config }: { config: AppConfig }) {
+   const [ctx, setCtx] = useState(String(config.compaction?.maxContextTokens || ''))
+   const [out, setOut] = useState(String(config.compaction?.maxOutputTokens || ''))
++  const { t } = useTranslation()
+ 
+   const data = useMemo(
+     () => ({ maxContextTokens: Number(ctx), maxOutputTokens: Number(out) }),
+@@ -80,14 +106,13 @@ function CompactionForm({ config }: { config: AppConfig }) {
+ 
+   return (
+     <>
+-      <Field label="Max Context Tokens">
++      <Field label={t.settings.maxContextTokens}>
+         <input className={inputClass} type="number" step={1000} value={ctx} onChange={(e) => setCtx(e.target.value)} />
+       </Field>
+-      <Field label="Max Output Tokens">
++      <Field label={t.settings.maxOutputTokens}>
+         <input className={inputClass} type="number" step={1000} value={out} onChange={(e) => setOut(e.target.value)} />
+       </Field>
+       <SaveIndicator status={status} onRetry={retry} />
+     </>
+   )
+ }
+-
+diff --git a/ui/src/pages/ToolsPage.tsx b/ui/src/pages/ToolsPage.tsx
+index 1a2f119..98a325b 100644
+--- a/ui/src/pages/ToolsPage.tsx
++++ b/ui/src/pages/ToolsPage.tsx
+@@ -6,29 +6,29 @@ import { SaveIndicator } from '../components/SaveIndicator'
+ import { useAutoSave } from '../hooks/useAutoSave'
+ import { PageHeader } from '../components/PageHeader'
+ import { PageLoading, EmptyState } from '../components/StateViews'
+-
+-const GROUP_LABELS: Record<string, string> = {
+-  thinking: 'Thinking Kit',
+-  brain: 'Brain',
+-  browser: 'Browser',
+-  cron: 'Cron Scheduler',
+-  equity: 'Equity Data',
+-  'crypto-data': 'Crypto Data',
+-  'currency-data': 'Currency Data',
+-  news: 'News',
+-  'news-archive': 'News Archive',
+-  analysis: 'Analysis Kit',
+-  'crypto-trading': 'Crypto Trading',
+-  'securities-trading': 'Securities Trading',
++import { useTranslation } from '../i18n'
++
++const GROUP_LABELS_KEYS: Record<string, string> = {
++  thinking: 'thinking',
++  brain: 'brain',
++  browser: 'browser',
++  cron: 'cron',
++  equity: 'equity',
++  news: 'news',
++  analysis: 'analysis',
++  session: 'session',
++  trading: 'trading',
++  'market-search': 'market-search',
+ }
+ 
+-interface ToolGroup {
++interface ToolGroupItem {
+   key: string
+-  label: string
++  labelKey: string
+   tools: ToolInfo[]
+ }
+ 
+ export function ToolsPage() {
++  const { t } = useTranslation()
+   const [inventory, setInventory] = useState<ToolInfo[]>([])
+   const [disabled, setDisabled] = useState<Set<string>>(new Set())
+   const [loaded, setLoaded] = useState(false)
+@@ -42,15 +42,15 @@ export function ToolsPage() {
+     }).catch(() => {})
+   }, [])
+ 
+-  const groups = useMemo<ToolGroup[]>(() => {
++  const groups = useMemo<ToolGroupItem[]>(() => {
+     const map = new Map<string, ToolInfo[]>()
+-    for (const t of inventory) {
+-      if (!map.has(t.group)) map.set(t.group, [])
+-      map.get(t.group)!.push(t)
++    for (const t_item of inventory) {
++      if (!map.has(t_item.group)) map.set(t_item.group, [])
++      map.get(t_item.group)!.push(t_item)
+     }
+     return Array.from(map.entries()).map(([key, tools]) => ({
+       key,
+-      label: GROUP_LABELS[key] ?? key,
++      labelKey: GROUP_LABELS_KEYS[key] ?? key,
+       tools: tools.sort((a, b) => a.name.localeCompare(b.name)),
+     }))
+   }, [inventory])
+@@ -78,9 +78,9 @@ export function ToolsPage() {
+   const toggleGroup = useCallback((tools: ToolInfo[], enable: boolean) => {
+     setDisabled((prev) => {
+       const next = new Set(prev)
+-      for (const t of tools) {
+-        if (enable) next.delete(t.name)
+-        else next.add(t.name)
++      for (const tool of tools) {
++        if (enable) next.delete(tool.name)
++        else next.add(tool.name)
+       }
+       return next
+     })
+@@ -98,8 +98,8 @@ export function ToolsPage() {
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+       <PageHeader
+-        title="Tools"
+-        description={<>{inventory.length} tools in {groups.length} groups — changes apply on next AI request</>}
++        title={t.tools.title}
++        description={t.tools.titleDesc.replace('{count}', String(inventory.length)).replace('{groups}', String(groups.length))}
+         right={<SaveIndicator status={status} onRetry={retry} />}
+       />
+ 
+@@ -107,13 +107,15 @@ export function ToolsPage() {
+         {!loaded ? (
+           <PageLoading />
+         ) : groups.length === 0 ? (
+-          <EmptyState title="No tools registered." description="Tools will appear here when the engine starts." />
++          <EmptyState title={t.tools.noTools} description={t.tools.noToolsDesc} />
+         ) : (
+           <div className="max-w-[880px] mx-auto space-y-2">
+             {groups.map((g) => (
+               <ToolGroupCard
+                 key={g.key}
+-                group={g}
++                groupKey={g.key}
++                labelKey={g.labelKey}
++                tools_list={g.tools}
+                 disabled={disabled}
+                 expanded={expanded.has(g.key)}
+                 onToggleExpanded={() => toggleExpanded(g.key)}
+@@ -131,7 +133,9 @@ export function ToolsPage() {
+ // ==================== ToolGroupCard ====================
+ 
+ interface ToolGroupCardProps {
+-  group: ToolGroup
++  groupKey: string
++  labelKey: string
++  tools_list: ToolInfo[]
+   disabled: Set<string>
+   expanded: boolean
+   onToggleExpanded: () => void
+@@ -140,15 +144,18 @@ interface ToolGroupCardProps {
+ }
+ 
+ function ToolGroupCard({
+-  group,
++  groupKey,
++  labelKey,
++  tools_list,
+   disabled,
+   expanded,
+   onToggleExpanded,
+   onToggleTool,
+   onToggleGroup,
+ }: ToolGroupCardProps) {
+-  const enabledCount = group.tools.filter((t) => !disabled.has(t.name)).length
+-  const allEnabled = enabledCount === group.tools.length
++  const { t } = useTranslation()
++  const groupLabel = (t.tools as Record<string, string>)[labelKey] ?? labelKey
++  const enabledCount = tools_list.filter((t_item) => !disabled.has(t_item.name)).length
+   const noneEnabled = enabledCount === 0
+ 
+   return (
+@@ -166,15 +173,15 @@ function ToolGroupCard({
+           >
+             <polyline points="9 18 15 12 9 6" />
+           </svg>
+-          <span className="text-sm font-medium text-text truncate">{group.label}</span>
++          <span className="text-sm font-medium text-text truncate">{groupLabel}</span>
+           <span className="text-[11px] text-text-muted shrink-0">
+-            {enabledCount}/{group.tools.length}
++            {enabledCount}/{tools_list.length}
+           </span>
+         </button>
+         <Toggle
+           size="sm"
+           checked={!noneEnabled}
+-          onChange={(v) => onToggleGroup(group.tools, v)}
++          onChange={(v) => onToggleGroup(tools_list, v)}
+         />
+       </div>
+ 
+@@ -185,27 +192,27 @@ function ToolGroupCard({
+         } overflow-hidden`}
+       >
+         <div className="divide-y divide-border">
+-          {group.tools.map((t) => {
+-            const enabled = !disabled.has(t.name)
++          {tools_list.map((toolItem) => {
++            const enabled = !disabled.has(toolItem.name)
+             return (
+               <div
+-                key={t.name}
++                key={toolItem.name}
+                 className={`flex items-center gap-3 px-4 py-2 ${
+                   enabled ? '' : 'opacity-50'
+                 }`}
+               >
+                 <div className="flex-1 min-w-0">
+-                  <span className="text-[13px] text-text font-mono">{t.name}</span>
+-                  {t.description && (
++                  <span className="text-[13px] text-text font-mono">{toolItem.name}</span>
++                  {toolItem.description && (
+                     <p className="text-[11px] text-text-muted mt-0.5 line-clamp-1">
+-                      {t.description}
++                      {(t.toolDescriptions as Record<string, string>)[toolItem.name] ?? toolItem.description}
+                     </p>
+                   )}
+                 </div>
+                 <Toggle
+                   size="sm"
+                   checked={enabled}
+-                  onChange={() => onToggleTool(t.name)}
++                  onChange={() => onToggleTool(toolItem.name)}
+                 />
+               </div>
+             )
+diff --git a/ui/src/pages/TradingPage.tsx b/ui/src/pages/TradingPage.tsx
+index 99dc46d..4eea4d1 100644
+--- a/ui/src/pages/TradingPage.tsx
++++ b/ui/src/pages/TradingPage.tsx
+@@ -9,6 +9,7 @@ import { useTradingConfig } from '../hooks/useTradingConfig'
+ import { useAccountHealth } from '../hooks/useAccountHealth'
+ import { PageHeader } from '../components/PageHeader'
+ import { api } from '../api'
++import { useTranslation } from '../i18n'
+ import type { AccountConfig, BrokerTypeInfo, BrokerConfigField, BrokerHealthInfo } from '../api/types'
+ 
+ // ==================== Dialog state ====================
+@@ -21,6 +22,7 @@ type DialogState =
+ // ==================== Page ====================
+ 
+ export function TradingPage() {
++  const { t } = useTranslation()
+   const tc = useTradingConfig()
+   const healthMap = useAccountHealth()
+   const [dialog, setDialog] = useState<DialogState>(null)
+@@ -37,12 +39,12 @@ export function TradingPage() {
+     }
+   }, [tc.accounts, dialog])
+ 
+-  if (tc.loading) return <PageShell subtitle="Loading..." />
++  if (tc.loading) return <PageShell subtitle={t.trading.loading} />
+   if (tc.error) {
+     return (
+-      <PageShell subtitle="Failed to load trading configuration.">
++      <PageShell subtitle={t.trading.loadFailed}>
+         <p className="text-[13px] text-red">{tc.error}</p>
+-        <button onClick={tc.refresh} className="mt-2 btn-secondary">Retry</button>
++        <button onClick={tc.refresh} className="mt-2 btn-secondary">{t.trading.retry}</button>
+       </PageShell>
+     )
+   }
+@@ -54,7 +56,7 @@ export function TradingPage() {
+ 
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+-      <PageHeader title="Trading" description="Configure your trading accounts." />
++      <PageHeader title={t.trading.title} description={t.trading.titleDesc} />
+ 
+       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5">
+         <div className="max-w-[720px] space-y-3">
+@@ -75,7 +77,7 @@ export function TradingPage() {
+                 onClick={() => setDialog({ kind: 'add' })}
+                 className="w-full py-2.5 text-[12px] text-text-muted hover:text-text border border-dashed border-border hover:border-text-muted/40 rounded-lg transition-colors"
+               >
+-                + Add Account
++                {t.trading.addAccount}
+               </button>
+             </>
+           )}
+@@ -91,7 +93,7 @@ export function TradingPage() {
+             await tc.saveAccount(account)
+             const result = await tc.reconnectAccount(account.id)
+             if (!result.success) {
+-              throw new Error(result.error || 'Connection failed')
++              throw new Error(result.error || t.trading.connectionFailed)
+             }
+             setDialog(null)
+           }}
+@@ -121,9 +123,10 @@ export function TradingPage() {
+ // ==================== Page Shell ====================
+ 
+ function PageShell({ subtitle, children }: { subtitle: string; children?: React.ReactNode }) {
++  const { t } = useTranslation()
+   return (
+     <div className="flex flex-col flex-1 min-h-0">
+-      <PageHeader title="Trading" description={subtitle} />
++      <PageHeader title={t.trading.title} description={subtitle} />
+       <div className="flex-1 overflow-y-auto px-4 md:px-6 py-5">{children}</div>
+     </div>
+   )
+@@ -132,14 +135,15 @@ function PageShell({ subtitle, children }: { subtitle: string; children?: React.
+ // ==================== Empty State ====================
+ 
+ function EmptyState({ onAdd }: { onAdd: () => void }) {
++  const { t } = useTranslation()
+   return (
+     <div className="rounded-xl border border-dashed border-border p-12 text-center">
+-      <h3 className="text-[16px] font-semibold text-text mb-2">No trading accounts</h3>
++      <h3 className="text-[16px] font-semibold text-text mb-2">{t.trading.noAccounts}</h3>
+       <p className="text-[13px] text-text-muted mb-6 max-w-[320px] mx-auto leading-relaxed">
+-        Connect a crypto exchange or brokerage account to start automated trading.
++        {t.trading.noAccountsDesc}
+       </p>
+       <button onClick={onAdd} className="btn-primary">
+-        + Add Account
++        {t.trading.addAccount}
+       </button>
+     </div>
+   )
+@@ -174,6 +178,7 @@ function Dialog({ onClose, width, children }: {
+ // ==================== Health Badge ====================
+ 
+ function HealthBadge({ health, size = 'sm' }: { health?: BrokerHealthInfo; size?: 'sm' | 'md' }) {
++  const { t } = useTranslation()
+   const textSize = size === 'md' ? 'text-[12px]' : 'text-[11px]'
+   const dotSize = size === 'md' ? 'w-2 h-2' : 'w-1.5 h-1.5'
+ 
+@@ -183,7 +188,7 @@ function HealthBadge({ health, size = 'sm' }: { health?: BrokerHealthInfo; size?
+     return (
+       <span className={`inline-flex items-center gap-1.5 ${textSize} text-text-muted`} title={health.lastError}>
+         <span className={`${dotSize} rounded-full bg-text-muted/40 shrink-0`} />
+-        Disabled
++        {t.trading.disabled}
+       </span>
+     )
+   }
+@@ -193,7 +198,7 @@ function HealthBadge({ health, size = 'sm' }: { health?: BrokerHealthInfo; size?
+       return (
+         <span className={`inline-flex items-center gap-1.5 ${textSize} text-green`}>
+           <span className={`${dotSize} rounded-full bg-green shrink-0`} />
+-          Connected
++          {t.trading.connected}
+         </span>
+       )
+     case 'degraded':
+@@ -239,6 +244,7 @@ function AccountCard({ account, brokerType, health, onClick }: {
+   health?: BrokerHealthInfo
+   onClick: () => void
+ }) {
++  const { t } = useTranslation()
+   const isDisabled = health?.disabled || account.enabled === false
+   const badge = brokerType
+     ? { text: brokerType.badge, color: `${brokerType.badgeColor} ${brokerType.badgeColor.replace('text-', 'bg-')}/10` }
+@@ -262,7 +268,7 @@ function AccountCard({ account, brokerType, health, onClick }: {
+         </div>
+         <div className="shrink-0">
+           {account.enabled === false
+-            ? <span className="text-[11px] text-text-muted">Disabled</span>
++            ? <span className="text-[11px] text-text-muted">{t.trading.disabled}</span>
+             : <HealthBadge health={health} />
+           }
+         </div>
+@@ -279,23 +285,28 @@ function DynamicBrokerFields({ fields, values, showSecrets, onChange }: {
+   showSecrets: boolean
+   onChange: (field: string, value: unknown) => void
+ }) {
++  const { t } = useTranslation()
++  const tf = (key: string, fallback: string) => (t.trading as Record<string, string>)[key] ?? fallback
+   return (
+     <div className="space-y-3">
+       {fields.map((f) => {
++        const labelKey = f.label.replace(/\s+/g, '').replace(/^[A-Z]/, (c) => c.toLowerCase())
++        const label = (t.trading as Record<string, string>)[labelKey] ?? f.label
++        const desc = f.description ? tf(f.description, f.description) : undefined
+         switch (f.type) {
+           case 'boolean':
+             return (
+               <div key={f.name}>
+                 <label className="flex items-center gap-2.5 cursor-pointer">
+                   <Toggle checked={Boolean(values[f.name] ?? f.default)} onChange={(v) => onChange(f.name, v)} />
+-                  <span className="text-[13px] text-text">{f.label}</span>
++                  <span className="text-[13px] text-text">{label}</span>
+                 </label>
+-                {f.description && <p className="text-[11px] text-text-muted/60 mt-1">{f.description}</p>}
++                {desc && <p className="text-[11px] text-text-muted/60 mt-1">{desc}</p>}
+               </div>
+             )
+           case 'select':
+             return (
+-              <Field key={f.name} label={f.label}>
++              <Field key={f.name} label={label}>
+                 <select className={inputClass} value={String(values[f.name] ?? f.default ?? '')} onChange={(e) => onChange(f.name, e.target.value)}>
+                   {f.options?.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                 </select>
+@@ -303,7 +314,7 @@ function DynamicBrokerFields({ fields, values, showSecrets, onChange }: {
+             )
+           case 'number':
+             return (
+-              <Field key={f.name} label={f.label}>
++              <Field key={f.name} label={label}>
+                 <input className={inputClass} type="number" value={Number(values[f.name] ?? f.default ?? 0)} onChange={(e) => onChange(f.name, parseInt(e.target.value) || 0)} placeholder={f.placeholder} />
+               </Field>
+             )
+@@ -311,13 +322,13 @@ function DynamicBrokerFields({ fields, values, showSecrets, onChange }: {
+           case 'password':
+           default:
+             return (
+-              <Field key={f.name} label={f.label}>
++              <Field key={f.name} label={label}>
+                 <input
+                   className={inputClass}
+                   type={f.sensitive && !showSecrets ? 'password' : 'text'}
+                   value={String(values[f.name] ?? f.default ?? '')}
+                   onChange={(e) => onChange(f.name, e.target.value)}
+-                  placeholder={f.placeholder || (f.required ? 'Required' : '')}
++                  placeholder={f.placeholder || (f.required ? tf('required', 'Required') : '')}
+                 />
+               </Field>
+             )
+@@ -350,6 +361,7 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+   onSave: (account: AccountConfig) => Promise<void>
+   onClose: () => void
+ }) {
++  const { t } = useTranslation()
+   const [step, setStep] = useState(1)
+   const [type, setType] = useState<string | null>(null)
+   const [id, setId] = useState('')
+@@ -382,6 +394,8 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+     id: b.type,
+     name: b.name,
+     description: b.description,
++    nameKey: b.type as 'ccxt' | 'alpaca' | 'longbridge' | 'ibkr',
++    descriptionKey: `${b.type}Desc` as 'ccxtDesc' | 'alpacaDesc' | 'longbridgeDesc' | 'ibkrDesc',
+     badge: b.badge,
+     badgeColor: b.badgeColor,
+   }))
+@@ -389,7 +403,7 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+   const handleNext = () => {
+     if (!type) return
+     if (existingAccountIds.includes(finalId)) {
+-      setError(`Account "${finalId}" already exists`)
++      setError(t.trading.accountAlreadyExists)
+       return
+     }
+     setError('')
+@@ -407,14 +421,14 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+ 
+       const testResult = await api.trading.testConnection(account)
+       if (!testResult.success) {
+-        setError(testResult.error || 'Connection failed')
++        setError(testResult.error || t.trading.connectionFailed)
+         setSaving(false)
+         return
+       }
+ 
+       await onSave(account)
+     } catch (err) {
+-      setError(err instanceof Error ? err.message : 'Failed to create account')
++      setError(err instanceof Error ? err.message : t.trading.connectionFailed)
+       setSaving(false)
+     }
+   }
+@@ -428,7 +442,7 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+       {/* Header */}
+       <div className="shrink-0 px-6 py-4 border-b border-border">
+         <div className="flex items-center justify-between mb-3">
+-          <h3 className="text-[14px] font-semibold text-text">New Account</h3>
++          <h3 className="text-[14px] font-semibold text-text">{t.trading.newAccount}</h3>
+           <button onClick={onClose} className="text-text-muted hover:text-text p-1 transition-colors">
+             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+               <path d="M18 6L6 18M6 6l12 12" />
+@@ -443,14 +457,14 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+         {step === 1 && (
+           <div className="space-y-5">
+             <div>
+-              <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-3">Platform</p>
++              <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-3">{t.trading.platform}</p>
+               <SDKSelector options={platformOptions} selected={type ?? ''} onSelect={(t) => setType(t)} />
+             </div>
+ 
+             {type && bt && (
+               <div className="space-y-3 pt-2 border-t border-border">
+-                <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-1">Connection</p>
+-                <Field label="Account ID">
++                <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-1">{t.trading.connection}</p>
++                <Field label={t.trading.accountId}>
+                   <input className={inputClass} value={id} onChange={(e) => setId(e.target.value.trim())} placeholder={defaultId} />
+                 </Field>
+                 <DynamicBrokerFields
+@@ -474,7 +488,7 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+               <span className="text-[13px] text-text-muted">{bt.name}</span>
+             </div>
+ 
+-            <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-1">Credentials</p>
++            <p className="text-[12px] font-medium text-text-muted uppercase tracking-wide mb-1">{t.trading.credentials}</p>
+             <DynamicBrokerFields
+               fields={credentialFields}
+               values={brokerConfig}
+@@ -489,21 +503,21 @@ function CreateWizard({ brokerTypes, existingAccountIds, onSave, onClose }: {
+       {/* Footer */}
+       <div className="shrink-0 flex items-center justify-between px-6 py-4 border-t border-border">
+         <button onClick={step === 1 ? onClose : () => { setStep(1); setError('') }} className="btn-secondary">
+-          {step === 1 ? 'Cancel' : 'Back'}
++          {step === 1 ? t.trading.cancel : t.trading.back}
+         </button>
+         {step === 1 && !hasSensitive && type && (
+           <button onClick={handleNext} disabled={saving} className="btn-primary">
+-            {saving ? 'Connecting...' : 'Create Account'}
++            {saving ? t.trading.connecting : t.trading.createAccount}
+           </button>
+         )}
+         {step === 1 && (hasSensitive || !type) && (
+           <button onClick={handleNext} disabled={!type} className="btn-primary">
+-            Next
++            {t.trading.next}
+           </button>
+         )}
+         {step === 2 && (
+           <button onClick={handleCreate} disabled={saving || !canCreate} className="btn-primary">
+-            {saving ? 'Connecting...' : 'Create Account'}
++            {saving ? t.trading.connecting : t.trading.createAccount}
+           </button>
+         )}
+       </div>
+@@ -521,6 +535,7 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+   onDelete: () => Promise<void>
+   onClose: () => void
+ }) {
++  const { t } = useTranslation()
+   const [draft, setDraft] = useState(account)
+   const [saving, setSaving] = useState(false)
+   const [msg, setMsg] = useState('')
+@@ -543,10 +558,10 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+     setSaving(true); setMsg('')
+     try {
+       await onSaveAccount(draft)
+-      setMsg('Saved')
++      setMsg(t.trading.saved)
+       setTimeout(() => setMsg(''), 2000)
+     } catch (err) {
+-      setMsg(err instanceof Error ? err.message : 'Save failed')
++      setMsg(err instanceof Error ? err.message : t.trading.saveFailed)
+     } finally {
+       setSaving(false)
+     }
+@@ -573,9 +588,9 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+ 
+       {/* Body */}
+       <div className="flex-1 overflow-y-auto px-6 py-6 space-y-5">
+-        <Section title="Configuration">
++        <Section title={t.trading.configuration}>
+           <div className="mb-3">
+-            <span className="text-[12px] text-text-muted">Type</span>
++            <span className="text-[12px] text-text-muted">{t.trading.type}</span>
+             <span className="ml-2 text-[12px] font-medium text-text">{brokerType?.name ?? account.type}</span>
+           </div>
+           <DynamicBrokerFields
+@@ -589,7 +604,7 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+               onClick={() => setShowKeys(!showKeys)}
+               className="text-[11px] text-text-muted hover:text-text transition-colors mt-2"
+             >
+-              {showKeys ? 'Hide secrets' : 'Show secrets'}
++              {showKeys ? t.trading.hideSecrets : t.trading.showSecrets}
+             </button>
+           )}
+         </Section>
+@@ -607,14 +622,14 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+             >
+               <polyline points="9 18 15 12 9 6" />
+             </svg>
+-            Guards ({draft.guards.length})
++            {t.trading.guards} ({draft.guards.length})
+           </button>
+           {guardsOpen && (
+             <div className="mt-3">
+               <GuardsSection
+                 guards={draft.guards}
+                 guardTypes={guardTypes}
+-                description="Guards validate operations before execution. Order matters."
++                description={t.trading.guardsDesc}
+                 onChange={patchGuards}
+                 onChangeImmediate={patchGuards}
+               />
+@@ -628,7 +643,7 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+         <div className="flex items-center gap-3">
+           {dirty && (
+             <button onClick={handleSave} disabled={saving} className="btn-primary">
+-              {saving ? 'Saving...' : 'Save'}
++              {saving ? t.trading.saving : 'Save'}
+             </button>
+           )}
+           {draft.enabled !== false && <ReconnectButton accountId={account.id} />}
+@@ -638,12 +653,12 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+               setDraft(updated)
+               await onSaveAccount(updated)
+             }} />
+-            <span className="text-[12px] text-text-muted">{draft.enabled !== false ? 'Enabled' : 'Disabled'}</span>
++            <span className="text-[12px] text-text-muted">{draft.enabled !== false ? t.trading.enabled : t.trading.disabled}</span>
+           </label>
+           {msg && <span className="text-[12px] text-text-muted">{msg}</span>}
+         </div>
+         <div className="flex-1" />
+-        <DeleteButton label="Delete Account" onConfirm={onDelete} />
++        <DeleteButton label={t.trading.deleteAccount} onConfirm={onDelete} />
+       </div>
+     </Dialog>
+   )
+@@ -652,16 +667,17 @@ function EditDialog({ account, brokerType, health, onSaveAccount, onDelete, onCl
+ // ==================== Delete Button ====================
+ 
+ function DeleteButton({ label, onConfirm }: { label: string; onConfirm: () => void }) {
++  const { t } = useTranslation()
+   const [confirming, setConfirming] = useState(false)
+ 
+   if (confirming) {
+     return (
+       <div className="flex items-center gap-2">
+         <button onClick={() => { onConfirm(); setConfirming(false) }} className="btn-danger">
+-          Confirm
++          {t.trading.confirm}
+         </button>
+         <button onClick={() => setConfirming(false)} className="btn-secondary">
+-          Cancel
++          {t.trading.cancel}
+         </button>
+       </div>
+     )
