@@ -252,7 +252,7 @@ function HeroMetrics({ equity }: { equity: AggregatedEquity | null }) {
   if (!equity) {
     return (
       <div className="border border-border rounded-lg bg-bg-secondary p-5 text-center">
-        <p className="text-[13px] text-text-muted">Unable to load portfolio data.</p>
+        <p className="text-[13px] text-text-muted">{t.portfolio.loadFailed}</p>
       </div>
     )
   }
@@ -337,7 +337,7 @@ function isDerivative(p: Position): boolean {
 }
 
 /** Build display fragments for a contract based on its secType. */
-function contractDisplay(p: Position): { name: string; tag?: string } {
+function contractDisplay(p: Position): { name: string; tag?: string; sub?: string } {
   const c = p.contract
   const sym = c.symbol ?? '???'
   const t = c.secType
@@ -355,8 +355,9 @@ function contractDisplay(p: Position): { name: string; tag?: string } {
   if (t === 'CRYPTO') {
     return { name: sym, tag: 'spot' }
   }
-  // STK, CASH, BOND, CMDTY, etc. — just the symbol, no tag
-  return { name: sym }
+  // STK, CASH, BOND, CMDTY, etc. — show Chinese name + ticker as sub
+  const localSym = c.localSymbol ?? sym
+  return { name: c.description || sym, tag: undefined, sub: localSym !== (c.description || '') ? localSym : undefined }
 }
 
 function PositionsTable({ positions }: { positions: PositionWithAccount[] }) {
@@ -364,7 +365,7 @@ function PositionsTable({ positions }: { positions: PositionWithAccount[] }) {
   return (
     <div>
       <h3 className="text-[13px] font-semibold text-text-muted uppercase tracking-wide mb-3">
-        Positions
+        {t.portfolio.positions}
       </h3>
       <div className="border border-border rounded-lg overflow-x-auto">
         <table className="w-full text-[13px]">
@@ -387,18 +388,23 @@ function PositionsTable({ positions }: { positions: PositionWithAccount[] }) {
               return (
                 <tr key={i} className="border-t border-border hover:bg-bg-tertiary/30 transition-colors">
                   <td className="px-3 py-2">
-                    {/* Primary: symbol + inline badges */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-medium text-text">{display.name}</span>
-                      {display.tag && (
-                        <span className="text-[10px] px-1 py-0.5 rounded bg-bg-tertiary text-text-muted">{display.tag}</span>
+                    {/* Primary: name + inline badges */}
+                    <div className="flex flex-col gap-0.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-medium text-text">{display.name}</span>
+                        {display.tag && (
+                          <span className="text-[10px] px-1 py-0.5 rounded bg-bg-tertiary text-text-muted">{display.tag}</span>
+                        )}
+                        {deriv && (
+                          <span className={`text-[10px] px-1 py-0.5 rounded font-medium ${p.side === 'long' ? 'bg-green/15 text-green' : 'bg-red/15 text-red'}`}>
+                            {p.side}
+                          </span>
+                        )}
+                        <span className="text-[10px] text-text-muted/50">{p.accountLabel}</span>
+                      </div>
+                      {display.sub && (
+                        <span className="text-[11px] text-text-muted/60">{display.sub}</span>
                       )}
-                      {deriv && (
-                        <span className={`text-[10px] px-1 py-0.5 rounded font-medium ${p.side === 'long' ? 'bg-green/15 text-green' : 'bg-red/15 text-red'}`}>
-                          {p.side}
-                        </span>
-                      )}
-                      <span className="text-[10px] text-text-muted/50">{p.accountLabel}</span>
                     </div>
                   </td>
                   <td className="px-3 py-2 text-right text-text">{fmtNum(Number(p.quantity))}</td>
@@ -512,7 +518,7 @@ function SnapshotSettings({ enabled, every, onEnabledChange, onEveryChange, save
 
   return (
     <div className="flex items-center gap-3 text-[12px] text-text-muted">
-      <span className="font-medium uppercase tracking-wide">Snapshots</span>
+      <span className="font-medium uppercase tracking-wide">{t.portfolio.snapshots}</span>
       <Toggle checked={enabled} onChange={onEnabledChange} size="sm" />
       <div className="flex gap-0.5">
         {INTERVAL_PRESETS.map(p => (
