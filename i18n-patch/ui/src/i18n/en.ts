@@ -465,6 +465,8 @@ export const en = {
   chat: {
     channels: 'Channels',
     newChannel: 'New Channel',
+    welcomeTitle: "Hi, I'm Alice",
+    welcomeSubtitle: 'Send a message to start chatting',
     channelId: 'Channel ID',
     channelLabel: 'Channel Label',
     create: 'Create',

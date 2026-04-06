@@ -468,6 +468,8 @@ export const zh = {
   chat: {
     channels: '频道',
     newChannel: '新建频道',
+    welcomeTitle: '你好，我是 Alice',
+    welcomeSubtitle: '发送消息开始聊天',
     channelId: '频道 ID',
     channelLabel: '频道名称',
     create: '创建',

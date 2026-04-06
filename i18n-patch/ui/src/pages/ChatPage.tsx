@@ -282,13 +282,13 @@ export function ChatPage({ onSSEStatus }: ChatPageProps) {
             <div className="text-center">
               {activeChannel === 'default' ? (
                 <>
-                  <h2 className="text-lg font-semibold text-text mb-1">Hi, I&apos;m Alice</h2>
-                  <p className="text-sm text-text-muted">{activeChannel === 'default' ? t.chat.channels : t.chat.newChannel}</p>
+                  <h2 className="text-lg font-semibold text-text mb-1">{t.chat.welcomeTitle}</h2>
+                  <p className="text-sm text-text-muted">{t.chat.welcomeSubtitle}</p>
                 </>
               ) : (
                 <>
                   <h2 className="text-lg font-semibold text-text mb-1">{activeChannelConfig?.label ?? activeChannel}</h2>
-                  <p className="text-sm text-text-muted">{t.chat.newChannel}</p>
+                  <p className="text-sm text-text-muted">{t.chat.welcomeSubtitle}</p>
                 </>
               )}
             </div>
