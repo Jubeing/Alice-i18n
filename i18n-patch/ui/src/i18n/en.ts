@@ -4,14 +4,14 @@ export const en = {
     chat: 'Chat',
     portfolio: 'Portfolio',
     events: 'Events',
-    agentStatus: 'Agent Status',
+    'agentStatus': 'Agent Status',
     heartbeat: 'Heartbeat',
-    marketData: 'Market Data',
+    'marketData': 'Market Data',
     news: 'News',
     connectors: 'Connectors',
     tools: 'Tools',
     trading: 'Trading',
-    aiProvider: 'AI Provider',
+    'aiProvider': 'AI Provider',
     settings: 'Settings',
     dev: 'Dev',
     sectionAgent: 'Agent',
@@ -91,7 +91,7 @@ export const en = {
   },
 
   // AI Provider page
-  aiProvider: {
+  'aiProvider': {
     title: 'AI Provider',
     titleDesc: 'Configure the AI backend, model, and API keys.',
     backend: 'Backend',
@@ -280,7 +280,7 @@ export const en = {
   },
 
   // Market Data page
-  marketData: {
+  'marketData': {
     title: 'Market Data',
     titleDesc: 'Structured financial data — prices, fundamentals, macro indicators.',
     loading: 'Loading...',
@@ -382,7 +382,7 @@ export const en = {
   },
 
   // Agent Status page
-  agentStatus: {
+  'agentStatus': {
     title: 'Agent Status',
     allTools: 'All tools',
     pause: 'Pause',
