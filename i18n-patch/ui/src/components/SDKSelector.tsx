@@ -1,5 +1,11 @@
 import { useTranslation } from '../i18n'
 
+// Helper for type-safe dynamic i18n key access
+function tv(section: Record<string, unknown>, key: string, fallback: string): string {
+  const val = section[key]
+  return typeof val === 'string' ? val : fallback
+}
+
 export interface SDKOption {
   id: string
   name: string
@@ -78,14 +84,14 @@ export function SDKSelector(props: SDKSelectorProps) {
             {/* Coming Soon badge */}
             {isDisabled && (
               <span className="absolute top-2.5 right-2.5 text-[10px] font-medium text-text-muted/60 bg-bg-tertiary px-1.5 py-0.5 rounded">
-                {opt.comingSoonKey ? (t as Record<string, Record<string, string>>)[opt.comingSoonKey] ?? 'Coming Soon' : 'Coming Soon'}
+                {opt.comingSoonKey ? tv(t.connectors, opt.comingSoonKey, 'Coming Soon') : 'Coming Soon'}
               </span>
             )}
 
             {/* Locked badge (always active) */}
             {isLocked && !isDisabled && (
               <span className="absolute top-2.5 right-2.5 text-[10px] font-medium text-accent/70 bg-accent/10 px-1.5 py-0.5 rounded">
-                {opt.alwaysOnKey ? (t as Record<string, Record<string, string>>)[opt.alwaysOnKey] ?? 'Always On' : 'Always On'}
+                {opt.alwaysOnKey ? tv(t.connectors, opt.alwaysOnKey, 'Always On') : 'Always On'}
               </span>
             )}
 
@@ -112,10 +118,10 @@ export function SDKSelector(props: SDKSelectorProps) {
 
               <div className="min-w-0 pr-5">
                 <p className={`text-[13px] font-medium ${isSelected ? 'text-text' : isDisabled ? 'text-text-muted' : 'text-text'}`}>
-                  {opt.nameKey ? (t as Record<string, Record<string, string>>)[opt.nameKey] ?? opt.name : opt.name}
+                  {opt.nameKey ? tv(t.connectors, opt.nameKey, opt.name) : opt.name}
                 </p>
                 <p className="text-[11px] text-text-muted/70 mt-0.5 leading-relaxed">
-                  {opt.descriptionKey ? (t as Record<string, Record<string, string>>)[opt.descriptionKey] ?? opt.description : opt.description}
+                  {opt.descriptionKey ? tv(t.connectors, opt.descriptionKey, opt.description) : opt.description}
                 </p>
               </div>
             </div>
