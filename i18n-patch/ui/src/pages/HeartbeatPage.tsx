@@ -163,17 +163,17 @@ function HeartbeatConfigForm({ config }: { config: AppConfig }) {
                 value={ahTimezone}
                 onChange={(e) => setAhTimezone(e.target.value)}
               >
-                <option value="local">Local</option>
+                <option value="local">{t.heartbeat.tzLocal}</option>
                 <option value="UTC">UTC</option>
-                <option value="America/New_York">US Eastern</option>
-                <option value="America/Chicago">US Central</option>
-                <option value="America/Los_Angeles">US Pacific</option>
-                <option value="Europe/London">London</option>
-                <option value="Europe/Berlin">Berlin</option>
-                <option value="Asia/Tokyo">Tokyo</option>
-                <option value="Asia/Shanghai">Shanghai</option>
-                <option value="Asia/Hong_Kong">Hong Kong</option>
-                <option value="Asia/Singapore">Singapore</option>
+                <option value="America/New_York">{t.heartbeat.tzUSEastern}</option>
+                <option value="America/Chicago">{t.heartbeat.tzUSCentral}</option>
+                <option value="America/Los_Angeles">{t.heartbeat.tzUSPacific}</option>
+                <option value="Europe/London">{t.heartbeat.tzLondon}</option>
+                <option value="Europe/Berlin">{t.heartbeat.tzBerlin}</option>
+                <option value="Asia/Tokyo">{t.heartbeat.tzTokyo}</option>
+                <option value="Asia/Shanghai">{t.heartbeat.tzShanghai}</option>
+                <option value="Asia/Hong_Kong">{t.heartbeat.tzHongKong}</option>
+                <option value="Asia/Singapore">{t.heartbeat.tzSingapore}</option>
               </select>
             </div>
           </div>

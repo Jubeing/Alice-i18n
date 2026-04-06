@@ -513,6 +513,7 @@ function SnapshotSettings({ enabled, every, onEnabledChange, onEveryChange, save
   onEveryChange: (v: string) => void
   saveStatus: string
 }) {
+  const { t } = useTranslation()
   const isPreset = INTERVAL_PRESETS.some(p => p.value === every)
   const [showCustom, setShowCustom] = useState(!isPreset)
 
@@ -553,8 +554,8 @@ function SnapshotSettings({ enabled, every, onEnabledChange, onEveryChange, save
           placeholder="e.g. 2h"
         />
       )}
-      {saveStatus === 'saving' && <span className="text-accent text-[10px]">saving...</span>}
-      {saveStatus === 'error' && <span className="text-red text-[10px]">save failed</span>}
+      {saveStatus === 'saving' && <span className="text-accent text-[10px]">{t.portfolio.saving}</span>}
+      {saveStatus === 'error' && <span className="text-red text-[10px]">{t.portfolio.saveFailed}</span>}
     </div>
   )
 }

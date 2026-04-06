@@ -169,7 +169,7 @@ export function MarketDataPage() {
             onApiServerChange={(server) => updateConfigImmediate({ apiServer: server })}
           />
         </div>
-        {loadError && <p className="text-[13px] text-red mt-4 max-w-[880px] mx-auto">Failed to load configuration.</p>}
+        {loadError && <p className="text-[13px] text-red mt-4 max-w-[880px] mx-auto">{t.marketData.loadFailed}</p>}
       </div>
     </div>
   )
