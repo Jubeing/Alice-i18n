@@ -78,14 +78,14 @@ export function SDKSelector(props: SDKSelectorProps) {
             {/* Coming Soon badge */}
             {isDisabled && (
               <span className="absolute top-2.5 right-2.5 text-[10px] font-medium text-text-muted/60 bg-bg-tertiary px-1.5 py-0.5 rounded">
-                {opt.comingSoonKey ? (t.connectors as unknown as Record<string, string>)[opt.comingSoonKey] ?? 'Coming Soon' : 'Coming Soon'}
+                {opt.comingSoonKey ? (t as Record<string, Record<string, string>>)[opt.comingSoonKey] ?? 'Coming Soon' : 'Coming Soon'}
               </span>
             )}
 
             {/* Locked badge (always active) */}
             {isLocked && !isDisabled && (
               <span className="absolute top-2.5 right-2.5 text-[10px] font-medium text-accent/70 bg-accent/10 px-1.5 py-0.5 rounded">
-                {opt.alwaysOnKey ? (t.connectors as unknown as Record<string, string>)[opt.alwaysOnKey] ?? 'Always On' : 'Always On'}
+                {opt.alwaysOnKey ? (t as Record<string, Record<string, string>>)[opt.alwaysOnKey] ?? 'Always On' : 'Always On'}
               </span>
             )}
 
@@ -112,10 +112,10 @@ export function SDKSelector(props: SDKSelectorProps) {
 
               <div className="min-w-0 pr-5">
                 <p className={`text-[13px] font-medium ${isSelected ? 'text-text' : isDisabled ? 'text-text-muted' : 'text-text'}`}>
-                  {opt.nameKey ? (t.connectors as unknown as Record<string, string>)[opt.nameKey] ?? opt.name : opt.name}
+                  {opt.nameKey ? (t as Record<string, Record<string, string>>)[opt.nameKey] ?? opt.name : opt.name}
                 </p>
                 <p className="text-[11px] text-text-muted/70 mt-0.5 leading-relaxed">
-                  {opt.descriptionKey ? (t.connectors as unknown as Record<string, string>)[opt.descriptionKey] ?? opt.description : opt.description}
+                  {opt.descriptionKey ? (t as Record<string, Record<string, string>>)[opt.descriptionKey] ?? opt.description : opt.description}
                 </p>
               </div>
             </div>
