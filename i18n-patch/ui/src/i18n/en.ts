@@ -490,6 +490,11 @@ export const en = {
     editChannel: 'Edit Channel',
     scrollToBottom: 'Scroll to bottom',
     newMessages: 'new messages',
+    placeholder: {
+      waitingForResponse: 'Waiting for response...',
+      messageAlice: 'Message Alice...',
+    },
+    enterForNewLine: 'Enter to send, Shift + Enter for new line',
   },
 
   // Tool descriptions

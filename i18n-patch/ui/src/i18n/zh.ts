@@ -493,6 +493,11 @@ export const zh = {
     editChannel: '编辑频道',
     scrollToBottom: '滚动到底部',
     newMessages: '条新消息',
+    placeholder: {
+      waitingForResponse: '等待回复...',
+      messageAlice: '给 Alice 发消息...',
+    },
+    enterForNewLine: 'Enter 发送，Shift + Enter 换行',
   },
 
   // Tool descriptions
